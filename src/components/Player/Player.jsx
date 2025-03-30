@@ -29,6 +29,7 @@ const Player = () => {
   
   // Refs and context
   const audioRef = useRef(null);
+  const queueRef = useRef(null);
   const { user } = useUser();
   const { queue, setQueue, currentSongId, queueUpdated } = usePlayer();
   const email = user?.email;
@@ -39,6 +40,18 @@ const Player = () => {
     const validSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
     return `${Math.floor(validSeconds / 60)}:${(validSeconds % 60).toString().padStart(2, '0')}`;
   };
+
+  // Close queue when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (queueRef.current && !queueRef.current.contains(event.target)) {
+        setShowQueue(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch queue from API
   useEffect(() => {
@@ -102,10 +115,11 @@ const Player = () => {
             audioRef.current.src = `${ApiService.getBaseUrl()}/music/stream/${newSong.id}`;
             
             await new Promise((resolve) => {
-              audioRef.current.oncanplay = () => {
+              const handleCanPlay = () => {
+                audioRef.current.removeEventListener('canplay', handleCanPlay);
                 resolve();
-                audioRef.current.oncanplay = null;
               };
+              audioRef.current.addEventListener('canplay', handleCanPlay);
             });
 
             if (queue.length > 0) {
@@ -131,11 +145,6 @@ const Player = () => {
       audioRef.current.volume = volume;
       audioRef.current.loop = isLooping;
       audioRef.current.muted = isMuted;
-      
-      // Smooth volume transitions
-      const handleVolumeChange = () => setVolume(audioRef.current.volume);
-      audioRef.current.addEventListener('volumechange', handleVolumeChange);
-      return () => audioRef.current.removeEventListener('volumechange', handleVolumeChange);
     }
   }, [volume, isLooping, isMuted]);
 
@@ -218,7 +227,6 @@ const Player = () => {
       setIsFavoriting(false);
     }
   };
-  
 
   // Error retry handler
   const handleRetry = async () => {
@@ -226,42 +234,54 @@ const Player = () => {
     await handlePlayPause();
   };
 
-  // Queue list component
+  // QueueList component
   const QueueList = () => (
-    <div className="sticky bottom-16 right-0 w-80 bg-gray-800/95 backdrop-blur-lg rounded-t-xl shadow-2xl border-t border-x border-white/10 max-h-60 overflow-y-auto z-10">
+    <div 
+      ref={queueRef}
+      className="fixed md:absolute bottom-16 md:bottom-20 right-0 w-full md:w-80 bg-gray-800/95 backdrop-blur-lg rounded-t-xl md:rounded-xl shadow-2xl border-t border-x border-white/10 max-h-60 overflow-y-auto z-50"
+    >
       <div className="p-3 space-y-1">
         <h3 className="text-sm font-bold text-white mb-1">Queue ({queue.length})</h3>
-        {queue.map((track, index) => (
-          <button
-            key={`${track.id}-${index}`}
-            onClick={() => index !== currentIndex && setCurrentIndex(index)}
-            className={`w-full p-2 rounded-md flex items-center justify-between text-sm ${
-              index === currentIndex 
-                ? "bg-cyan-500/20"
-                : "hover:bg-gray-700/50"
-            } transition-colors`}
-          >
-            <div className="flex items-center gap-2">
-              <img 
-                src={track.coverimage} 
-                alt="Album cover" 
-                className="w-8 h-8 rounded-sm object-cover"
-              />
-              <div className="text-left min-w-0">
-                <p className="text-white truncate">{track.title}</p>
-                <p className="text-xs text-cyan-400 truncate">{track.artist}</p>
+        {queue.length > 0 ? (
+          queue.map((track, index) => (
+            <button
+              key={`${track.id}-${index}`}
+              onClick={() => {
+                if (index !== currentIndex) {
+                  setCurrentIndex(index);
+                }
+                setShowQueue(false);
+              }}
+              className={`w-full p-2 rounded-md flex items-center justify-between text-sm ${
+                index === currentIndex 
+                  ? "bg-cyan-500/20"
+                  : "hover:bg-gray-700/50"
+              } transition-colors`}
+            >
+              <div className="flex items-center gap-2">
+                <img 
+                  src={track.coverimage} 
+                  alt="Album cover" 
+                  className="w-8 h-8 rounded-sm object-cover"
+                />
+                <div className="text-left min-w-0">
+                  <p className="text-white truncate">{track.title}</p>
+                  <p className="text-xs text-cyan-400 truncate">{track.artist}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">
-                {formatTime(track.duration)}
-              </span>
-              {index === currentIndex && (
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              )}
-            </div>
-          </button>
-        ))}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">
+                  {formatTime(track.duration)}
+                </span>
+                {index === currentIndex && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                )}
+              </div>
+            </button>
+          ))
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-2">Queue is empty</p>
+        )}
       </div>
     </div>
   );
@@ -289,161 +309,296 @@ const Player = () => {
     );
   }
 
-  // Main player UI
   return (
-    <div className="w-full px-3 bg-gray-900/95 backdrop-blur-lg border-t border-white/5 h-16 flex items-center justify-between gap-4 relative">
-      {song ? (
-        <>
-          <audio
-            ref={audioRef}
-            onLoadedMetadata={handleMetadataLoad}
-            onTimeUpdate={updateProgress}
-            onEnded={() => queue.length > 0 && handleTrackChange(1)}
-            onError={() => setError("Playback failed")}
-            onWaiting={() => setIsBuffering(true)}
-            onPlaying={() => setIsBuffering(false)}
-          />
-
-          {/* Left Section - Song Info */}
-          <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[30%]">
-            <img 
-              src={song.coverimage} 
-              alt="Album art" 
-              className="w-10 h-10 rounded-md object-cover"
+    <div className="w-full bg-gray-900/95 backdrop-blur-lg border-t border-white/5">
+      {/* Desktop Layout */}
+      <div className="hidden md:flex items-center justify-between px-4 py-2 h-20 gap-4">
+        {song ? (
+          <>
+            <audio
+              ref={audioRef}
+              onLoadedMetadata={handleMetadataLoad}
+              onTimeUpdate={updateProgress}
+              onEnded={() => queue.length > 0 && handleTrackChange(1)}
+              onError={() => setError("Playback failed")}
+              onWaiting={() => setIsBuffering(true)}
+              onPlaying={() => setIsBuffering(false)}
             />
-            <div className="min-w-0">
-              <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
-              <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+
+            {/* Left Section */}
+            <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[30%]">
+              <img 
+                src={song.coverimage} 
+                alt="Album art" 
+                className="w-12 h-12 rounded-md object-cover"
+              />
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
+                <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+              </div>
+              <button 
+                onClick={handleFavorite}
+                className="text-red-400 hover:text-red-300 transition-colors"
+                disabled={isFavoriting}
+              >
+                <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
+              </button>
             </div>
-            <button 
-              onClick={handleFavorite}
-              className="text-red-400 hover:text-red-300 transition-colors ml-1"
-              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              disabled={isFavoriting}
-            >
-              <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
-            </button>
+
+            {/* Center Controls */}
+            <div className="flex flex-col items-center gap-2 flex-1 max-w-[40%]">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsShuffling(!isShuffling)}
+                  className={`p-2 rounded-md ${
+                    isShuffling 
+                      ? "text-cyan-400 bg-cyan-900/20" 
+                      : "text-gray-300 hover:bg-gray-800/30"
+                  }`}
+                  disabled={isLoading || queue.length <= 1}
+                >
+                  <Shuffle size={16} />
+                </button>
+                
+                <button 
+                  onClick={() => handleTrackChange(-1)}
+                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
+                  disabled={isLoading || queue.length === 0}
+                >
+                  <SkipBack size={16} />
+                </button>
+                
+                <button
+                  onClick={handlePlayPause}
+                  className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105"
+                  disabled={isLoading || isBuffering}
+                >
+                  {isLoading || isBuffering ? (
+                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  ) : isPlaying ? (
+                    <Pause size={16} className="text-white" />
+                  ) : (
+                    <Play size={16} className="text-white pl-0.5" />
+                  )}
+                </button>
+                
+                <button 
+                  onClick={() => handleTrackChange(1)}
+                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
+                  disabled={isLoading || queue.length === 0}
+                >
+                  <SkipForward size={16} />
+                </button>
+                
+                <button
+                  onClick={() => setIsLooping(!isLooping)}
+                  className={`p-2 rounded-md ${
+                    isLooping 
+                      ? "text-purple-400 bg-purple-900/20" 
+                      : "text-gray-300 hover:bg-gray-800/30"
+                  }`}
+                  disabled={isLoading}
+                >
+                  <Repeat size={16} />
+                </button>
+              </div>
+
+              <div className="w-full flex items-center gap-2 text-xs text-gray-400">
+                <span className="w-8">{formatTime(audioRef.current?.currentTime || 0)}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={progress}
+                  onChange={handleProgressChange}
+                  className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
+                  disabled={isLoading}
+                />
+                <span className="w-8">{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            {/* Right Section */}
+            <div className="flex items-center gap-3 flex-1 max-w-[30%] justify-end">
+              <div className="flex items-center gap-2 w-28">
+                <button 
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="text-gray-300 hover:text-white p-1"
+                >
+                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="w-20 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
+                />
+              </div>
+              
+              {queue.length > 0 && (
+                <button 
+                  onClick={() => setShowQueue(!showQueue)}
+                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-md hover:bg-gray-800/30 relative"
+                >
+                  <ListMusic size={18} />
+                  {showQueue && <QueueList />}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="w-full text-center text-gray-400 text-sm">
+            {isLoading ? "Loading..." : "Select a song to play"}
           </div>
+        )}
+      </div>
 
-          {/* Center Controls */}
-          <div className="flex flex-col items-center gap-1 flex-1 max-w-[40%]">
+      {/* Mobile Layout */}
+      <div className="md:hidden flex flex-col p-2 gap-2">
+        {song && (
+          <>
+            <audio
+              ref={audioRef}
+              onLoadedMetadata={handleMetadataLoad}
+              onTimeUpdate={updateProgress}
+              onEnded={() => queue.length > 0 && handleTrackChange(1)}
+              onError={() => setError("Playback failed")}
+              onWaiting={() => setIsBuffering(true)}
+              onPlaying={() => setIsBuffering(false)}
+            />
+
+            {/* Song Info */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsShuffling(!isShuffling)}
-                className={`p-1 rounded-md ${
-                  isShuffling 
-                    ? "text-cyan-400 bg-cyan-900/20" 
-                    : "text-gray-300 hover:bg-gray-800/30"
-                }`}
-                disabled={isLoading || queue.length <= 1}
-              >
-                <Shuffle size={16} />
-              </button>
-              
+              <img 
+                src={song.coverimage} 
+                alt="Album art" 
+                className="w-10 h-10 rounded-md object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
+                <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+              </div>
               <button 
-                onClick={() => handleTrackChange(-1)}
-                className="text-gray-300 hover:text-white p-1 rounded-md hover:bg-gray-800/30"
-                disabled={isLoading || queue.length === 0}
+                onClick={handleFavorite}
+                className="text-red-400 hover:text-red-300"
+                disabled={isFavoriting}
               >
-                <SkipBack size={18} />
-              </button>
-              
-              <button
-                onClick={handlePlayPause}
-                className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105"
-                disabled={isLoading || isBuffering}
-              >
-                {isLoading || isBuffering ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : isPlaying ? (
-                  <Pause size={16} className="text-white" />
-                ) : (
-                  <Play size={16} className="text-white pl-0.5" />
-                )}
-              </button>
-              
-              <button 
-                onClick={() => handleTrackChange(1)}
-                className="text-gray-300 hover:text-white p-1 rounded-md hover:bg-gray-800/30"
-                disabled={isLoading || queue.length === 0}
-              >
-                <SkipForward size={18} />
-              </button>
-              
-              <button
-                onClick={() => setIsLooping(!isLooping)}
-                className={`p-1 rounded-md ${
-                  isLooping 
-                    ? "text-purple-400 bg-purple-900/20" 
-                    : "text-gray-300 hover:bg-gray-800/30"
-                }`}
-                disabled={isLoading}
-              >
-                <Repeat size={16} />
+                <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
 
+            {/* Progress Bar */}
             <div className="w-full flex items-center gap-2 text-xs text-gray-400">
-              <span className="text-xxs w-8">{formatTime(audioRef.current?.currentTime || 0)}</span>
+              <span className="w-8">{formatTime(audioRef.current?.currentTime || 0)}</span>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={progress}
                 onChange={handleProgressChange}
-                className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400 thumb:w-2 thumb:h-2"
+                className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
                 disabled={isLoading}
               />
-              <span className="text-xxs w-8">{formatTime(duration)}</span>
+              <span className="w-8">{formatTime(duration)}</span>
             </div>
-          </div>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-2 flex-1 max-w-[30%] justify-end">
-            <div className="flex items-center gap-1 w-24">
-              <button 
-                onClick={() => setIsMuted(!isMuted)}
-                className="text-gray-300 hover:text-white p-1"
-                aria-label={isMuted ? "Unmute" : "Mute"}
-                disabled={isLoading}
+            {/* Controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsShuffling(!isShuffling)}
+                  className={`p-2 rounded-md ${
+                    isShuffling 
+                      ? "text-cyan-400 bg-cyan-900/20" 
+                      : "text-gray-300 hover:bg-gray-800/30"
+                  }`}
+                >
+                  <Shuffle size={16} />
+                </button>
+                <button 
+                  onClick={() => handleTrackChange(-1)}
+                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
+                >
+                  <SkipBack size={16} />
+                </button>
+              </div>
+
+              <button
+                onClick={handlePlayPause}
+                className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105"
+                disabled={isLoading || isBuffering}
               >
-                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                {isLoading || isBuffering ? (
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                ) : isPlaying ? (
+                  <Pause size={20} className="text-white" />
+                ) : (
+                  <Play size={20} className="text-white pl-0.5" />
+                )}
               </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-16 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
-                disabled={isLoading}
-              />
+
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => handleTrackChange(1)}
+                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
+                >
+                  <SkipForward size={16} />
+                </button>
+                <button
+                  onClick={() => setIsLooping(!isLooping)}
+                  className={`p-2 rounded-md ${
+                    isLooping 
+                      ? "text-purple-400 bg-purple-900/20" 
+                      : "text-gray-300 hover:bg-gray-800/30"
+                  }`}
+                >
+                  <Repeat size={16} />
+                </button>
+              </div>
             </div>
-            {queue.length > 0 && (
-              <button 
-                onClick={() => setShowQueue(!showQueue)}
-                className="text-gray-300 hover:text-cyan-400 p-1 rounded-md hover:bg-gray-800/30 relative"
-                disabled={isLoading}
-              >
-                <ListMusic size={18} />
-                {showQueue && <QueueList />}
-              </button>
-            )}
+
+            {/* Secondary Controls */}
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center gap-2 flex-1">
+                <button 
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="text-gray-300 hover:text-white p-1"
+                >
+                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
+                />
+              </div>
+              
+              {queue.length > 0 && (
+                <button 
+                  onClick={() => setShowQueue(!showQueue)}
+                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-md hover:bg-gray-800/30"
+                >
+                  <ListMusic size={18} />
+                  {showQueue && <QueueList />}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {!song && (
+          <div className="text-center text-gray-400 text-sm py-4">
+            {isLoading ? "Loading..." : "No song selected"}
           </div>
-        </>
-      ) : (
-        <div className="w-full text-center text-gray-400 text-sm py-2">
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>Loading...</span>
-            </div>
-          ) : (
-            <span>No song selected</span>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
