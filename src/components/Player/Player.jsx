@@ -18,6 +18,7 @@ const Player = () => {
   const [volume, setVolume] = useState(1);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [isLooping, setIsLooping] = useState(false);
   const [isShuffling, setIsShuffling] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -108,6 +109,9 @@ const Player = () => {
           setError(null);
           const newSong = queue[currentIndex];
           setSong(newSong);
+          setDuration(newSong.duration || 0);
+          setCurrentTime(0);
+          setProgress(0);
 
           if (audioRef.current) {
             audioRef.current.pause();
@@ -184,23 +188,32 @@ const Player = () => {
   // Metadata handler
   const handleMetadataLoad = () => {
     if (audioRef.current?.readyState > 0) {
-      setDuration(audioRef.current.duration);
+      const audioDuration = audioRef.current.duration;
+      if (Number.isFinite(audioDuration) && audioDuration > 0) {
+        setDuration(audioDuration);
+      }
     }
   };
 
   // Progress updates
   const updateProgress = () => {
-    if (audioRef.current && duration > 0) {
-      setProgress((audioRef.current.currentTime / duration) * 100);
+    if (audioRef.current) {
+      const time = audioRef.current.currentTime;
+      setCurrentTime(time);
+      if (duration > 0) {
+        setProgress((time / duration) * 100);
+      }
     }
   };
 
   // Seek handler
   const handleProgressChange = (e) => {
-    const newTime = (e.target.value / 100) * duration;
+    const newProgress = e.target.value;
+    const newTime = (newProgress / 100) * duration;
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
-      setProgress(e.target.value);
+      setProgress(newProgress);
+      setCurrentTime(newTime);
     }
   };
 
@@ -404,7 +417,7 @@ const Player = () => {
               </div>
 
               <div className="w-full flex items-center gap-2 text-xs text-gray-400">
-                <span className="w-8">{formatTime(audioRef.current?.currentTime || 0)}</span>
+                <span className="w-8">{formatTime(currentTime)}</span>
                 <input
                   type="range"
                   min="0"
@@ -492,7 +505,7 @@ const Player = () => {
 
             {/* Progress Bar */}
             <div className="w-full flex items-center gap-2 text-xs text-gray-400">
-              <span className="w-8">{formatTime(audioRef.current?.currentTime || 0)}</span>
+              <span className="w-8">{formatTime(currentTime)}</span>
               <input
                 type="range"
                 min="0"
