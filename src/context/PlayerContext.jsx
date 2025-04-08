@@ -7,6 +7,7 @@ export const PlayerProvider = ({ children }) => {
   const [queue, setQueue] = useState([]);
   const [queueUpdated, setQueueUpdated] = useState(false);
   const [currentSongId, setCurrentSongId] = useState(null);
+  const [favoritesUpdated, setFavoritesUpdated] = useState(false);
 
   return (
     <PlayerContext.Provider value={{
@@ -15,7 +16,9 @@ export const PlayerProvider = ({ children }) => {
       queueUpdated,
       setQueueUpdated,
       currentSongId,
-      setCurrentSongId
+      setCurrentSongId,
+      favoritesUpdated,
+      setFavoritesUpdated
     }}>
       {children}
     </PlayerContext.Provider>

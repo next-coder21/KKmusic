@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import axios from "axios";
-import Logo from '../../assets/CSI_Kanyakumari_Diocese_Logo.png';
+import Logo from '../../assets/Muves.png';
 import { useUser } from "../../context/UserContext";
 import ApiService from "../../services/ApiService";
 
@@ -259,7 +259,7 @@ const Auth = () => {
           <img src={Logo} alt="Logo" className="w-16 h-16" /><br/>
           
         </div>
-        <h2 className="text-2xl text-center pb-2">♫ uve 𝄞 𓏢</h2>
+        <h2 className="text-2xl text-center pb-2">Muve𝄞</h2>
 
         <h2 className="text-2xl font-bold text-center mb-6">
   {{

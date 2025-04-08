@@ -29,7 +29,6 @@ const Playlist = () => {
     fetchSongs();
   }, []);
 
-  // Group songs by album
   const albums = songs.reduce((acc, song) => {
     const album = song.album || "Various";
     if (!acc[album]) acc[album] = [];
@@ -37,7 +36,6 @@ const Playlist = () => {
     return acc;
   }, {});
 
-  // Play single song
   const playSong = async (id) => {
     if (!email) return;
     try {
@@ -53,7 +51,6 @@ const Playlist = () => {
     }
   };
 
-  // Play full album
   const playAlbum = async (album) => {
     if (!email) return;
     try {
@@ -69,7 +66,6 @@ const Playlist = () => {
     }
   };
 
-  // Format duration
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -77,24 +73,24 @@ const Playlist = () => {
   };
 
   return (
-    <div className="mx-auto max-w-8xl"> {/* Added pb-24 for player space */}
+    <div className="mx-auto ">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
-            Music Library
+          <h1 className="text-2xl sm:text-6xl md:text-5xl lg:text-5xl xl:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
+            Album
           </h1>
-          <p className="text-sm text-gray-400 mt-1">Browse your music collection</p>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">Browse your music collection</p>
         </div>
-        <span className="text-sm px-3 py-1 bg-gray-800 rounded-full text-gray-300">
+        <span className="text-xs sm:text-sm px-3 py-1 bg-gray-800 rounded-full text-gray-300">
           {Object.keys(albums).length} {Object.keys(albums).length === 1 ? 'Album' : 'Albums'}
         </span>
       </header>
 
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {[...Array(12)].map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="w-full aspect-square bg-gray-800 rounded-xl" />
+        <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="animate-pulse flex-shrink-0">
+              <div className="w-16 h-16 sm:w-56 sm:h-16 md:w-16 md:h-16 bg-gray-800 rounded-xl" />
               <div className="mt-2 h-4 bg-gray-800 rounded w-3/4" />
               <div className="mt-1 h-3 bg-gray-800 rounded w-1/2" />
             </div>
@@ -102,22 +98,21 @@ const Playlist = () => {
         </div>
       ) : (
         <motion.div
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-4"
+          className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide hover:scrollbar-default"
           layout
         >
           {Object.entries(albums).map(([album, tracks]) => (
             <motion.div
               key={album}
-              className="group"
+              className="group flex-shrink-0"
               layout
               transition={{ duration: 0.2 }}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
             >
               <div className="relative">
-                {/* Album Card */}
                 <div
-                  className="w-40 aspect-square rounded-xl overflow-hidden cursor-pointer relative shadow-lg"
+                  className="w-24 h-24 sm:w-40 sm:h-40 md:w-36 md:h-36 rounded-xl overflow-hidden cursor-pointer relative shadow-lg"
                   onClick={() => setOpenedAlbum(album)}
                   onDoubleClick={() => playAlbum(album)}
                 >
@@ -127,8 +122,8 @@ const Playlist = () => {
                     className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-                    <div className="w-full">
-                      <p className="font-medium text-white truncate">{album}</p>
+                    <div className="w-full p-3">
+                      <p className="font-medium text-white truncate text-sm md:text-base">{album}</p>
                       <p className="text-xs text-gray-300">{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</p>
                     </div>
                     <button 
@@ -138,7 +133,7 @@ const Playlist = () => {
                       }}
                       className="absolute right-4 top-4 bg-cyan-600 hover:bg-cyan-700 p-2 rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100"
                     >
-                      <FiPlay className="text-white" />
+                      <FiPlay className="text-white w-4 h-4 md:w-5 md:h-5" />
                     </button>
                   </div>
                 </div>
@@ -148,7 +143,6 @@ const Playlist = () => {
         </motion.div>
       )}
 
-      {/* Album Detail Panel */}
       <AnimatePresence>
         {openedAlbum && (
           <>
@@ -164,15 +158,15 @@ const Playlist = () => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: '100%' }}
               transition={{ type: "spring", damping: 30, stiffness: 400 }}
-              className="fixed top-0 right-0 h-[calc(100vh-80px)] w-full max-w-md bg-gray-900 border-l border-gray-800 shadow-2xl p-6 z-50 mt-20" // Added mt-20 to account for navbar
+              className="fixed top-0 right-0 h-[calc(100vh-80px)] w-full max-w-2xl bg-gray-900 border-l border-gray-800 shadow-2xl p-6 z-50 mt-20"
             >
               <div className="flex flex-col h-full">
                 <div className="flex justify-between items-start mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-white line-clamp-2">
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white line-clamp-2">
                       {openedAlbum}
                     </h2>
-                    <p className="text-gray-400 mt-1">
+                    <p className="text-gray-400 mt-1 text-sm md:text-base">
                       {albums[openedAlbum]?.[0]?.artist || 'Unknown Artist'}
                     </p>
                   </div>
@@ -180,14 +174,14 @@ const Playlist = () => {
                     onClick={() => setOpenedAlbum(null)}
                     className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition-colors"
                   >
-                    <FiX className="w-5 h-5" />
+                    <FiX className="w-6 h-6" />
                   </button>
                 </div>
 
                 <div className="flex items-center gap-4 mb-6">
                   <button
                     onClick={() => playAlbum(openedAlbum)}
-                    className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm md:text-base"
                   >
                     <FiPlay className="text-lg" />
                     Play Album
@@ -195,7 +189,7 @@ const Playlist = () => {
                 </div>
 
                 <div className="border-t border-gray-800 pt-4 flex-1 overflow-hidden flex flex-col">
-                  <div className="flex items-center text-gray-400 text-xs uppercase tracking-wider mb-2 px-2">
+                  <div className="flex items-center text-gray-400 text-xs md:text-sm uppercase tracking-wider mb-2 px-2">
                     <div className="w-8"><FiMusic className="opacity-0" /></div>
                     <div className="flex-1">Title</div>
                     <div className="w-12 text-center"><FiClock /></div>
@@ -209,18 +203,18 @@ const Playlist = () => {
                         className="flex items-center p-2 rounded-lg cursor-pointer transition-colors"
                         onClick={() => playSong(track.id)}
                       >
-                        <div className="w-8 text-center text-gray-400 text-sm">
+                        <div className="w-8 text-center text-gray-400 text-sm md:text-base">
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
+                          <p className="text-sm md:text-base font-medium text-white truncate">
                             {track.title}
                           </p>
-                          <p className="text-xs text-gray-400 truncate">
+                          <p className="text-xs md:text-sm text-gray-400 truncate">
                             {track.artist}
                           </p>
                         </div>
-                        <div className="text-xs text-gray-400 w-12 text-center">
+                        <div className="text-xs md:text-sm text-gray-400 w-12 text-center">
                           {formatDuration(track.duration)}
                         </div>
                       </motion.div>
@@ -236,13 +230,13 @@ const Playlist = () => {
       {!loading && Object.keys(albums).length === 0 && (
         <div className="text-center py-20">
           <div className="text-6xl mb-6">🎵</div>
-          <h3 className="text-2xl font-medium text-gray-300 mb-3">
+          <h3 className="text-xl md:text-2xl font-medium text-gray-300 mb-3">
             Your library is empty
           </h3>
-          <p className="text-gray-500 max-w-md mx-auto">
+          <p className="text-gray-500 max-w-md mx-auto text-sm md:text-base">
             Start by uploading your music collection or connect your streaming service
           </p>
-          <button className="mt-6 bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-full transition-colors">
+          <button className="mt-6 bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-full transition-colors text-sm md:text-base">
             Add Music
           </button>
         </div>

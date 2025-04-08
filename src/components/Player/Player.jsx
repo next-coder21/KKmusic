@@ -1,21 +1,22 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { 
   Play, Pause, Volume2, VolumeX, 
   Shuffle, Repeat, ListMusic, 
   Heart, SkipBack, SkipForward, 
-  Loader2 
+  Loader2, X
 } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { usePlayer } from "../../context/PlayerContext";
 import ApiService from "../../services/ApiService";
+import toast from "react-hot-toast";
 
 const Player = () => {
   // Player state
   const [song, setSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(0.8);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -27,26 +28,28 @@ const Player = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+  const [showMobileQueue, setShowMobileQueue] = useState(false);
   
-  // Refs and context
+  // Refs
   const audioRef = useRef(null);
   const queueRef = useRef(null);
   const { user } = useUser();
-  const { queue, setQueue, currentSongId, queueUpdated } = usePlayer();
+  const { queue, setQueue, currentSongId, queueUpdated, setFavoritesUpdated } = usePlayer();
   const email = user?.email;
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Format time helper
-  const formatTime = (seconds) => {
+  const formatTime = useCallback((seconds) => {
     const validSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
     return `${Math.floor(validSeconds / 60)}:${(validSeconds % 60).toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   // Close queue when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (queueRef.current && !queueRef.current.contains(event.target)) {
         setShowQueue(false);
+        setShowMobileQueue(false);
       }
     };
     
@@ -72,8 +75,8 @@ const Player = () => {
                 id,
                 title: songRes.data.title,
                 artist: songRes.data.artist,
-                coverimage: songRes.data.coverimage,
-                duration: songRes.data.duration || 0
+                coverimage: songRes.data.coverimage || '/default-album.jpg',
+                duration: songRes.data.duration || 180 // Default 3 minutes
               };
             } catch (err) {
               console.error(`Error loading song ${id}:`, err);
@@ -109,7 +112,7 @@ const Player = () => {
           setError(null);
           const newSong = queue[currentIndex];
           setSong(newSong);
-          setDuration(newSong.duration || 0);
+          setDuration(newSong.duration);
           setCurrentTime(0);
           setProgress(0);
 
@@ -142,6 +145,23 @@ const Player = () => {
 
     loadTrack();
   }, [currentIndex, queue]);
+
+  // Add this useEffect to check if current song is in favorites
+useEffect(() => {
+  const checkFavoriteStatus = async () => {
+    if (!user?.email || !song?.id) return;
+    
+    try {
+      const response = await axios.get(`${ApiService.getBaseUrl()}/favourites/${user.email}`);
+      const favoriteIds = response.data.favourites || [];
+      setIsFavorite(favoriteIds.includes(song.id));
+    } catch (err) {
+      console.error("Error checking favorite status:", err);
+    }
+  };
+
+  checkFavoriteStatus();
+}, [user, song]);
 
   // Audio controls
   useEffect(() => {
@@ -218,6 +238,29 @@ const Player = () => {
   };
 
   // Favorite handler
+  // const handleFavorite = async () => {
+  //   if (!user?.email || !song?.id) {
+  //     setError("User not logged in or song missing.");
+  //     return;
+  //   }
+  
+  //   setIsFavoriting(true);
+  
+  //   try {
+  //     await axios.post(`${ApiService.getBaseUrl()}/favourites/add`, {
+  //       email: user.email,
+  //       songIds: [song.id]
+  //     });
+  
+  //     setIsFavorite(!isFavorite);
+  //   } catch (err) {
+  //     console.error("Error updating favorites:", err);
+  //     setError("Failed to update favorites");
+  //   } finally {
+  //     setIsFavoriting(false);
+  //   }
+  // };
+
   const handleFavorite = async () => {
     if (!user?.email || !song?.id) {
       setError("User not logged in or song missing.");
@@ -227,15 +270,29 @@ const Player = () => {
     setIsFavoriting(true);
   
     try {
-      await axios.post(`${ApiService.getBaseUrl()}/favourites/add`, {
-        email: user.email,
-        songIds: [song.id]
-      });
+      if (isFavorite) {
+        // Correct DELETE request
+        await axios.post(`${ApiService.getBaseUrl()}/favourites/remove`, {
+
+            email: user.email, 
+            songIds: [song.id] 
+          
+        });
+        toast.success(`${song.title} removed from favorites`);
+      } else {
+        await axios.post(`${ApiService.getBaseUrl()}/favourites/add`, {
+          email: user.email,
+          songIds: [song.id]
+        });
+        toast.success(`${song.title} added to favorites`);
+      }
   
       setIsFavorite(!isFavorite);
+      setFavoritesUpdated(prev => !prev); // Update favorites state globally
     } catch (err) {
       console.error("Error updating favorites:", err);
       setError("Failed to update favorites");
+      toast.error("Failed to update favorites");
     } finally {
       setIsFavoriting(false);
     }
@@ -248,34 +305,46 @@ const Player = () => {
   };
 
   // QueueList component
-  const QueueList = () => (
+  const QueueList = ({ mobile = false }) => (
     <div 
       ref={queueRef}
-      className="fixed md:absolute bottom-16 md:bottom-20 right-0 w-full md:w-80 bg-gray-800/95 backdrop-blur-lg rounded-t-xl md:rounded-xl shadow-2xl border-t border-x border-white/10 max-h-60 overflow-y-auto z-50"
+      className={`${
+        mobile ? 
+        "fixed inset-x-0 bottom-20 rounded-t-2xl h-[60vh] pb-4" :
+        "absolute bottom-20 right-0 w-80 rounded-xl"
+      } bg-gray-800/95 backdrop-blur-lg shadow-2xl border border-white/10 overflow-y-auto z-50 transition-all`}
     >
+      <div className="sticky top-0 bg-gray-800/90 p-3 flex justify-between items-center border-b border-white/10">
+        <h3 className="text-sm font-bold text-white">Queue ({queue.length})</h3>
+        <button 
+          onClick={() => mobile ? setShowMobileQueue(false) : setShowQueue(false)}
+          className="text-gray-400 hover:text-white p-1"
+        >
+          <X size={18} />
+        </button>
+      </div>
       <div className="p-3 space-y-1">
-        <h3 className="text-sm font-bold text-white mb-1">Queue ({queue.length})</h3>
         {queue.length > 0 ? (
           queue.map((track, index) => (
             <button
               key={`${track.id}-${index}`}
               onClick={() => {
-                if (index !== currentIndex) {
-                  setCurrentIndex(index);
-                }
+                if (index !== currentIndex) setCurrentIndex(index);
                 setShowQueue(false);
+                setShowMobileQueue(false);
               }}
-              className={`w-full p-2 rounded-md flex items-center justify-between text-sm ${
+              className={`w-full p-3 rounded-lg flex items-center justify-between text-sm ${
                 index === currentIndex 
                   ? "bg-cyan-500/20"
                   : "hover:bg-gray-700/50"
               } transition-colors`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <img 
                   src={track.coverimage} 
                   alt="Album cover" 
-                  className="w-8 h-8 rounded-sm object-cover"
+                  className="w-10 h-10 rounded-md object-cover"
+                  onError={(e) => e.target.src = '/default-album.jpg'}
                 />
                 <div className="text-left min-w-0">
                   <p className="text-white truncate">{track.title}</p>
@@ -287,35 +356,58 @@ const Player = () => {
                   {formatTime(track.duration)}
                 </span>
                 {index === currentIndex && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                 )}
               </div>
             </button>
           ))
         ) : (
-          <p className="text-sm text-gray-400 text-center py-2">Queue is empty</p>
+          <p className="text-sm text-gray-400 text-center py-4">Queue is empty</p>
         )}
       </div>
     </div>
   );
 
+  // ControlButton component
+  const ControlButton = ({ 
+    icon: Icon, 
+    onClick, 
+    active = false, 
+    disabled = false, 
+    mobile = false,
+    ariaLabel 
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={`p-2 rounded-full ${
+        mobile ? "text-2xl" : "text-lg"
+      } ${
+        active ? "text-cyan-400 bg-cyan-900/20" : "text-gray-300 hover:bg-gray-800/30"
+      } transition-colors disabled:opacity-50 disabled:pointer-events-none`}
+    >
+      <Icon size={mobile ? 12 : 20} />
+    </button>
+  );
+
   // Error display
   if (error) {
     return (
-      <div className="w-full p-2 bg-red-900/20 text-red-400 rounded-lg flex items-center justify-between text-sm">
-        <span className="truncate">{error}</span>
-        <div className="flex gap-1">
+      <div className="w-full p-3 bg-red-800/90 backdrop-blur-lg rounded-lg flex items-center justify-between text-sm animate-slide-up">
+        <span className="truncate flex-1">{error}</span>
+        <div className="flex gap-2 ml-3">
           <button 
-            className="px-2 py-0.5 bg-red-900/30 rounded-md hover:bg-red-900/40 text-xs"
-            onClick={() => setError(null)}
-          >
-            Dismiss
-          </button>
-          <button 
-            className="px-2 py-0.5 bg-cyan-900/30 rounded-md hover:bg-cyan-900/40 text-cyan-400 text-xs"
+            className="px-3 py-1 bg-red-900/30 rounded-full hover:bg-red-900/40 text-xs"
             onClick={handleRetry}
           >
             Retry
+          </button>
+          <button 
+            className="px-3 py-1 bg-red-900/30 rounded-full hover:bg-red-900/40 text-xs"
+            onClick={() => setError(null)}
+          >
+            Dismiss
           </button>
         </div>
       </div>
@@ -323,123 +415,109 @@ const Player = () => {
   }
 
   return (
-    <div className="w-full bg-gray-900/95 backdrop-blur-lg border-t border-white/5">
+    <div className=" bg-gray-900/95 backdrop-blur-lg border-t border-white/5">
+      {/* Audio element */}
+      <audio
+        ref={audioRef}
+        onLoadedMetadata={handleMetadataLoad}
+        onTimeUpdate={updateProgress}
+        onEnded={() => queue.length > 0 && handleTrackChange(1)}
+        onError={() => setError("Playback failed")}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+      />
+
       {/* Desktop Layout */}
-      <div className="hidden md:flex items-center justify-between px-4 py-2 h-20 gap-4">
+      <div className="hidden md:flex items-center justify-between px-6 py-3 h-24 gap-4">
         {song ? (
           <>
-            <audio
-              ref={audioRef}
-              onLoadedMetadata={handleMetadataLoad}
-              onTimeUpdate={updateProgress}
-              onEnded={() => queue.length > 0 && handleTrackChange(1)}
-              onError={() => setError("Playback failed")}
-              onWaiting={() => setIsBuffering(true)}
-              onPlaying={() => setIsBuffering(false)}
-            />
-
-            {/* Left Section */}
-            <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[30%]">
+            {/* Left Section - Song Info */}
+            <div className="flex items-center gap-4 flex-1 max-w-[30%]">
               <img 
                 src={song.coverimage} 
                 alt="Album art" 
-                className="w-12 h-12 rounded-md object-cover"
+                className="w-14 h-14 rounded-lg object-cover shadow-lg"
+                onError={(e) => e.target.src = '/default-album.jpg'}
               />
               <div className="min-w-0">
-                <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
-                <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+                <h3 className="text-base font-medium text-white truncate">{song.title}</h3>
+                <p className="text-sm text-cyan-400 truncate">{song.artist}</p>
               </div>
               <button 
                 onClick={handleFavorite}
-                className="text-red-400 hover:text-red-300 transition-colors"
+                className="text-red-400 hover:text-red-300 transition-colors ml-2"
                 disabled={isFavoriting}
+                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
               >
-                <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
+                <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
 
             {/* Center Controls */}
-            <div className="flex flex-col items-center gap-2 flex-1 max-w-[40%]">
-              <div className="flex items-center gap-2">
-                <button
+            <div className="flex flex-col items-center gap-3 flex-1 max-w-[40%]">
+              <div className="flex items-center gap-3">
+                <ControlButton 
+                  icon={Shuffle} 
                   onClick={() => setIsShuffling(!isShuffling)}
-                  className={`p-2 rounded-md ${
-                    isShuffling 
-                      ? "text-cyan-400 bg-cyan-900/20" 
-                      : "text-gray-300 hover:bg-gray-800/30"
-                  }`}
+                  active={isShuffling}
                   disabled={isLoading || queue.length <= 1}
-                >
-                  <Shuffle size={16} />
-                </button>
-                
-                <button 
+                  ariaLabel="Toggle shuffle"
+                />
+                <ControlButton 
+                  icon={SkipBack} 
                   onClick={() => handleTrackChange(-1)}
-                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
                   disabled={isLoading || queue.length === 0}
-                >
-                  <SkipBack size={16} />
-                </button>
-                
+                  ariaLabel="Previous track"
+                />
                 <button
                   onClick={handlePlayPause}
-                  className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105"
+                  className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:pointer-events-none"
                   disabled={isLoading || isBuffering}
+                  aria-label={isPlaying ? "Pause" : "Play"}
                 >
                   {isLoading || isBuffering ? (
-                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
                   ) : isPlaying ? (
-                    <Pause size={16} className="text-white" />
+                    <Pause size={24} className="text-white" />
                   ) : (
-                    <Play size={16} className="text-white pl-0.5" />
+                    <Play size={24} className="text-white pl-0.5" />
                   )}
                 </button>
-                
-                <button 
+                <ControlButton 
+                  icon={SkipForward} 
                   onClick={() => handleTrackChange(1)}
-                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
                   disabled={isLoading || queue.length === 0}
-                >
-                  <SkipForward size={16} />
-                </button>
-                
-                <button
+                  ariaLabel="Next track"
+                />
+                <ControlButton 
+                  icon={Repeat} 
                   onClick={() => setIsLooping(!isLooping)}
-                  className={`p-2 rounded-md ${
-                    isLooping 
-                      ? "text-purple-400 bg-purple-900/20" 
-                      : "text-gray-300 hover:bg-gray-800/30"
-                  }`}
-                  disabled={isLoading}
-                >
-                  <Repeat size={16} />
-                </button>
+                  active={isLooping}
+                  ariaLabel="Toggle repeat"
+                />
               </div>
 
-              <div className="w-full flex items-center gap-2 text-xs text-gray-400">
-                <span className="w-8">{formatTime(currentTime)}</span>
+              {/* Progress Bar */}
+              <div className="w-full flex items-center gap-3 text-sm text-gray-400">
+                <span>{formatTime(currentTime)}</span>
                 <input
                   type="range"
                   min="0"
                   max="100"
                   value={progress}
                   onChange={handleProgressChange}
-                  className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
+                  className="flex-1 h-2 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
                   disabled={isLoading}
+                  aria-label="Track progress"
                 />
-                <span className="w-8">{formatTime(duration)}</span>
+                <span>{formatTime(duration)}</span>
               </div>
             </div>
 
-            {/* Right Section */}
-            <div className="flex items-center gap-3 flex-1 max-w-[30%] justify-end">
-              <div className="flex items-center gap-2 w-28">
-                <button 
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="text-gray-300 hover:text-white p-1"
-                >
-                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
+            {/* Right Section - Volume & Queue */}
+            <div className="flex items-center gap-4 flex-1 max-w-[30%] justify-end">
+              <div className="flex items-center gap-2 w-36">
+                <Volume2 size={20} className="text-gray-300" />
                 <input
                   type="range"
                   min="0"
@@ -447,16 +525,17 @@ const Player = () => {
                   step="0.01"
                   value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-20 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
+                  className="w-full h-2 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
+                  aria-label="Volume control"
                 />
               </div>
-              
               {queue.length > 0 && (
                 <button 
                   onClick={() => setShowQueue(!showQueue)}
-                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-md hover:bg-gray-800/30 relative"
+                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-full hover:bg-gray-800/30 relative"
+                  aria-label="Show queue"
                 >
-                  <ListMusic size={18} />
+                  <ListMusic size={20} />
                   {showQueue && <QueueList />}
                 </button>
               )}
@@ -470,143 +549,102 @@ const Player = () => {
       </div>
 
       {/* Mobile Layout */}
-      <div className="md:hidden flex flex-col p-2 gap-2">
-        {song && (
+      <div className="md:hidden flex flex-col p-3 gap-3">
+        {song ? (
           <>
-            <audio
-              ref={audioRef}
-              onLoadedMetadata={handleMetadataLoad}
-              onTimeUpdate={updateProgress}
-              onEnded={() => queue.length > 0 && handleTrackChange(1)}
-              onError={() => setError("Playback failed")}
-              onWaiting={() => setIsBuffering(true)}
-              onPlaying={() => setIsBuffering(false)}
-            />
-
-            {/* Song Info */}
-            <div className="flex items-center gap-2">
+            {/* Song Info & Progress */}
+            <div className="flex items-center gap-3">
               <img 
                 src={song.coverimage} 
                 alt="Album art" 
-                className="w-10 h-10 rounded-md object-cover"
+                className="w-12 h-12 rounded-lg object-cover"
+                onError={(e) => e.target.src = '/default-album.jpg'}
               />
-              <div className="min-w-0 flex-1">
+              <div className="flex-1">
                 <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
                 <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+                <div className="w-full flex items-center gap-2 text-xs text-gray-400 mt-1">
+                  <span>{formatTime(currentTime)}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={progress}
+                    onChange={handleProgressChange}
+                    className="flex-1 h-1 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
+                    disabled={isLoading}
+                    aria-label="Track progress"
+                  />
+                  <span>{formatTime(duration)}</span>
+                </div>
               </div>
               <button 
                 onClick={handleFavorite}
                 className="text-red-400 hover:text-red-300"
                 disabled={isFavoriting}
+                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
               >
-                <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
+                <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
 
-            {/* Progress Bar */}
-            <div className="w-full flex items-center gap-2 text-xs text-gray-400">
-              <span className="w-8">{formatTime(currentTime)}</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={progress}
-                onChange={handleProgressChange}
-                className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
-                disabled={isLoading}
-              />
-              <span className="w-8">{formatTime(duration)}</span>
-            </div>
-
-            {/* Controls */}
+            {/* Main Controls */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsShuffling(!isShuffling)}
-                  className={`p-2 rounded-md ${
-                    isShuffling 
-                      ? "text-cyan-400 bg-cyan-900/20" 
-                      : "text-gray-300 hover:bg-gray-800/30"
-                  }`}
-                >
-                  <Shuffle size={16} />
-                </button>
-                <button 
-                  onClick={() => handleTrackChange(-1)}
-                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
-                >
-                  <SkipBack size={16} />
-                </button>
-              </div>
-
+              <ControlButton 
+                icon={Shuffle} 
+                onClick={() => setIsShuffling(!isShuffling)}
+                active={isShuffling}
+                mobile
+                ariaLabel="Toggle shuffle"
+              />
+              <ControlButton 
+                icon={Repeat} 
+                onClick={() => setIsLooping(!isLooping)}
+                active={isLooping}
+                mobile
+                ariaLabel="Toggle repeat"
+              />
+              <ControlButton 
+                icon={SkipBack} 
+                onClick={() => handleTrackChange(-1)}
+                mobile
+                ariaLabel="Previous track"
+              />
               <button
                 onClick={handlePlayPause}
-                className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105"
+                className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:pointer-events-none"
                 disabled={isLoading || isBuffering}
+                aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isLoading || isBuffering ? (
-                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
                 ) : isPlaying ? (
-                  <Pause size={20} className="text-white" />
+                  <Pause size={24} className="text-white" />
                 ) : (
-                  <Play size={20} className="text-white pl-0.5" />
+                  <Play size={24} className="text-white pl-0.5" />
                 )}
               </button>
-
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => handleTrackChange(1)}
-                  className="p-2 text-gray-300 hover:text-white rounded-md hover:bg-gray-800/30"
-                >
-                  <SkipForward size={16} />
-                </button>
-                <button
-                  onClick={() => setIsLooping(!isLooping)}
-                  className={`p-2 rounded-md ${
-                    isLooping 
-                      ? "text-purple-400 bg-purple-900/20" 
-                      : "text-gray-300 hover:bg-gray-800/30"
-                  }`}
-                >
-                  <Repeat size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* Secondary Controls */}
-            <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-2 flex-1">
-                <button 
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="text-gray-300 hover:text-white p-1"
-                >
-                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="flex-1 h-1 bg-gray-800 rounded-full thumb:bg-cyan-400"
-                />
-              </div>
+              <ControlButton 
+                icon={SkipForward} 
+                onClick={() => handleTrackChange(1)}
+                mobile
+                ariaLabel="Next track"
+              />
               
-              {queue.length > 0 && (
-                <button 
-                  onClick={() => setShowQueue(!showQueue)}
-                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-md hover:bg-gray-800/30"
+               <button 
+                  onClick={() => setShowMobileQueue(!showMobileQueue)}
+                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-full hover:bg-gray-800/30"
+                  aria-label="Show queue"
                 >
-                  <ListMusic size={18} />
-                  {showQueue && <QueueList />}
+                  <ListMusic size={12} />
+                  {showMobileQueue && <QueueList mobile />}
                 </button>
-              )}
             </div>
-          </>
-        )}
 
-        {!song && (
+
+            
+          </>
+        ) : (
           <div className="text-center text-gray-400 text-sm py-4">
             {isLoading ? "Loading..." : "No song selected"}
           </div>

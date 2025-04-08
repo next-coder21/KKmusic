@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-default::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  
+  .scrollbar-default::-webkit-scrollbar-track {
+    @apply bg-gray-800;
+  }
+  
+  .scrollbar-default::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+  
+  .scrollbar-default::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
