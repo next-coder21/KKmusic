@@ -191,15 +191,27 @@ const AdminAnnouncements = ({ api }) => {
   /* ── Render ──────────────────────────────────────────── */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
-      <style>{`@keyframes shimmer{0%,100%{opacity:.5}50%{opacity:1}}`}</style>
+      <style>{`
+        @keyframes shimmer{0%,100%{opacity:.5}50%{opacity:1}}
+        .admin-split-view { display: flex; gap: 14px; flex: 1; overflow: hidden; }
+        .admin-split-left { width: 36%; min-width: 260px; display: flex; flex-direction: column; overflow: hidden; }
+        .admin-split-right { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        @media(max-width: 768px) {
+          .admin-split-view { flex-direction: column; }
+          .admin-split-left { width: 100%; height: 100%; flex-shrink: 0; }
+          .admin-split-right { width: 100%; height: 100%; flex-shrink: 0; }
+          .admin-split-view.mobile-feed .admin-split-right { display: none !important; }
+          .admin-split-view.mobile-detail .admin-split-left { display: none !important; }
+        }
+      `}</style>
 
       <PageHeader title="Broadcasts" subtitle="Send announcements to your listeners"
         action={<Btn icon={FiPlus} onClick={handleCreateNew}>New Broadcast</Btn>} />
 
-      <div style={{ display: 'flex', gap: 14, flex: 1, overflow: 'hidden' }}>
+      <div className={`admin-split-view ${viewMode === 'none' ? 'mobile-feed' : 'mobile-detail'}`}>
 
         {/* LEFT FEED */}
-        <div style={{ width: '36%', minWidth: 260, display: 'flex', flexDirection: 'column', ...card, overflow: 'hidden' }}>
+        <div className="admin-split-left" style={card}>
           <div style={{ padding: '12px 12px 10px', borderBottom: '1px solid #1a1a1a' }}>
             <div style={{ position: 'relative', marginBottom: 10 }}>
               <FiSearch size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#374151' }} />
@@ -289,7 +301,7 @@ const AdminAnnouncements = ({ api }) => {
         </div>
 
         {/* RIGHT PANEL */}
-        <div style={{ flex: 1, ...card, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <div className="admin-split-right" style={card}>
           <AnimatePresence mode="wait">
 
             {viewMode === 'none' && (
@@ -425,7 +437,8 @@ const AdminAnnouncements = ({ api }) => {
 
                   <div style={{ marginBottom: 26 }}>
                     <SL color="#2dd4bf">Call to Action</SL>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="admin-grid-2" style={{ display: 'grid', gap: 10 }}>
+                      <style>{`.admin-grid-2 { grid-template-columns: 1fr 1fr; } @media(max-width:600px) { .admin-grid-2 { grid-template-columns: 1fr; } }`}</style>
                       {[['Action URL', 'https://...', 'action_url'], ['Button Label', 'Listen now', 'action_label']].map(([lbl, ph, key]) => (
                         <div key={key}>
                           <label style={{ display: 'block', fontSize: 10, color: '#4b5563', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 5 }}>{lbl}</label>
@@ -466,7 +479,7 @@ const AdminAnnouncements = ({ api }) => {
 
                   <div>
                     <SL color="#f59e0b">Scheduling</SL>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div className="admin-grid-2" style={{ display: 'grid', gap: 8 }}>
                       {[{ val: true, label: 'Send immediately' }, { val: false, label: 'Schedule later' }].map(opt => {
                         const active = formData.send_immediately === opt.val;
                         return (
