@@ -80,7 +80,7 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
 
         {/* Main content */}
         <main className="app-main-content" style={{ gridArea:"main", overflowY:"auto", background:"var(--bg-root)" }}>
-          <div style={{ padding:"40px 40px 100px" }}>
+          <div style={{ padding: isDesktop ? "40px 40px 100px" : "20px 20px 140px" }}>
             <ErrorBoundary label="Main Content">
               <Routes>
                 <Route path="/"               element={<PrivateRoute><Home /></PrivateRoute>} />

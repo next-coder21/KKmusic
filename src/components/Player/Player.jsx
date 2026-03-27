@@ -369,44 +369,44 @@ export default function Player({ forceBar, onToggleDock }) {
       )}
 
       {forceBar && (
-        <div style={{ padding: "12px 40px", background: "#000", display: "flex", alignItems: "center", gap: 0, minHeight: 80, width: "100%" }}>
+        <div style={{ padding: window.innerWidth < 480 ? "12px 16px" : "12px 40px", background: "#000", display: "flex", alignItems: "center", gap: window.innerWidth < 480 ? 10 : 0, minHeight: 80, width: "100%" }}>
           {song ? (
             <>
               {/* Info Area */}
-              <div style={{ display: "flex", alignItems: "center", gap: 20, minWidth: 300, flex: 1 }}>
-                <img src={song.cover_url} style={{ width: 56, height: 56, border: "2px solid #CCFF00" }} alt="" />
+              <div style={{ display: "flex", alignItems: "center", gap: window.innerWidth < 480 ? 10 : 20, minWidth: window.innerWidth < 480 ? 0 : 300, flex: window.innerWidth < 480 ? "0 1 auto" : 1, overflow: "hidden" }}>
+                <img src={song.cover_url} style={{ width: window.innerWidth < 480 ? 44 : 56, height: window.innerWidth < 480 ? 44 : 56, border: "2px solid #CCFF00", flexShrink: 0 }} alt="" />
                 <div style={{ overflow: "hidden" }}>
-                   <p style={{ fontWeight: 900, textTransform: "uppercase", fontSize: 16, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em" }}>{song.title}</p>
-                   <p style={{ fontWeight: 900, color: "#CCFF00", fontSize: 11, textTransform: "uppercase", margin: 0 }}>{song.artist_name}</p>
+                   <p style={{ fontWeight: 900, textTransform: "uppercase", fontSize: window.innerWidth < 480 ? 13 : 16, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em" }}>{song.title}</p>
+                   <p style={{ fontWeight: 900, color: "#CCFF00", fontSize: window.innerWidth < 480 ? 9 : 11, textTransform: "uppercase", margin: 0 }}>{song.artist_name}</p>
                 </div>
               </div>
 
               {/* Central Transport & Progress */}
-              <div style={{ flex: 3, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 60px" }}>
-                 <div style={{ display: "flex", justifyContent: "center", gap: 40, alignItems: "center", marginBottom: 8 }}>
-                    <Ctrl icon={Shuffle} active={isShuffling} size={16} onClick={() => setIsShuffling(!isShuffling)} />
+              <div style={{ flex: window.innerWidth < 480 ? "1 1 auto" : 3, display: "flex", flexDirection: "column", justifyContent: "center", padding: window.innerWidth < 480 ? "0 10px" : "0 60px" }}>
+                 <div style={{ display: "flex", justifyContent: "center", gap: window.innerWidth < 480 ? 20 : 40, alignItems: "center", marginBottom: 8 }}>
+                    {window.innerWidth >= 480 && <Ctrl icon={Shuffle} active={isShuffling} size={16} onClick={() => setIsShuffling(!isShuffling)} />}
                     <Ctrl icon={SkipBack} onClick={() => skip(-1)} size={18} />
-                     <button onClick={togglePlay} style={{ width: 48, height: 48, background: "#CCFF00", border: "none", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                     <button onClick={togglePlay} style={{ width: window.innerWidth < 480 ? 40 : 48, height: window.innerWidth < 480 ? 40 : 48, background: "#CCFF00", border: "none", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                        {isBuffering
-                         ? <Loader2 size={22} color="#000" style={{ animation: "spin 0.8s linear infinite" }} />
+                         ? <Loader2 size={18} color="#000" style={{ animation: "spin 0.8s linear infinite" }} />
                          : isPlaying
-                           ? <Pause size={24} color="#000" fill="#000" />
-                           : <Play size={24} color="#000" fill="#000" style={{ marginLeft: 3 }} />
+                           ? <Pause size={20} color="#000" fill="#000" />
+                           : <Play size={20} color="#000" fill="#000" style={{ marginLeft: 2 }} />
                        }
                      </button>
                     <Ctrl icon={SkipForward} onClick={() => skip(1)} size={18} />
-                    <Ctrl icon={Repeat} active={isLooping} size={16} onClick={() => setIsLooping(!isLooping)} />
+                    {window.innerWidth >= 480 && <Ctrl icon={Repeat} active={isLooping} size={16} onClick={() => setIsLooping(!isLooping)} />}
                  </div>
-                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.3, width: 35 }}>{fmt(localTime)}</span>
-                    <div style={{ flex: 1 }}><ProgressBar height={6} /></div>
-                    <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.3, width: 35 }}>{fmt(duration)}</span>
+                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 9, fontWeight: 900, opacity: 0.3, width: 25 }}>{fmt(localTime)}</span>
+                    <div style={{ flex: 1 }}><ProgressBar height={4} /></div>
+                    <span style={{ fontSize: 9, fontWeight: 900, opacity: 0.3, width: 25 }}>{fmt(duration)}</span>
                  </div>
               </div>
 
               {/* Action Area */}
-              <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "flex-end", flex: 1, minWidth: 150 }}>
-                 <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Share Lyrics"><Share2 size={18} strokeWidth={3} /></button>
+              <div style={{ display: "flex", gap: window.innerWidth < 480 ? 12 : 24, alignItems: "center", justifyContent: "flex-end", flex: window.innerWidth < 480 ? "0 0 auto" : 1, minWidth: window.innerWidth < 480 ? 0 : 150 }}>
+                 {window.innerWidth >= 480 && <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Share Lyrics"><Share2 size={18} strokeWidth={3} /></button>}
                   <Ctrl 
                     icon={ListMusic} 
                     size={20} 
@@ -416,9 +416,11 @@ export default function Player({ forceBar, onToggleDock }) {
                       if (forceBar) onToggleDock();
                     }}
                   />
-                 <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Undock to Panel">
-                    <Maximize2 size={20} strokeWidth={3} />
-                 </button>
+                 {window.innerWidth >= 1025 && (
+                   <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Undock to Panel">
+                      <Maximize2 size={20} strokeWidth={3} />
+                   </button>
+                 )}
               </div>
             </>
           ) : <p style={{ flex: 1, fontSize: 10, fontWeight: 900, textAlign: "center", opacity: 0.2 }}>CHANNELS_IDLE</p>}

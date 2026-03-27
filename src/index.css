@@ -101,6 +101,13 @@ h1,h2,h3,h4,h5,h6 {
   .sidebar-desktop { display: none !important; }
   .topbar-menu-btn { display: flex !important; }
   .bottom-bar-wrapper { bottom: 64px; }
+  
+  /* Mobile Nav Bar Styles */
+  .mobile-nav-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 64px;
+    background: #000; border-top: 3px solid #CCFF00;
+    display: flex; align-items: center; z-index: 1000;
+  }
 }
 
 /* Visibility Utility */
