@@ -55,9 +55,9 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
     );
   }
 
-  const gridStyle = {
-    gridTemplateColumns: `${sidebarCollapsed ? "64px" : "240px"} 1fr ${(playerDockedBottom || !isDesktop) ? "0px" : "340px"}`
-  };
+  const gridStyle = isDesktop ? {
+    gridTemplateColumns: `${sidebarCollapsed ? "64px" : "240px"} 1fr ${playerDockedBottom ? "0px" : "340px"}`
+  } : {};
 
   return (
     <div style={{ height:"100vh",overflow:"hidden",background:"var(--bg-root)" }}>
