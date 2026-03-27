@@ -70,7 +70,7 @@ const NavItem = ({ item, active, scheduledCount }) => {
   );
 };
 
-const Sidebar = ({ onLogout, api, adminName }) => {
+const Sidebar = ({ onLogout, api, adminName, mobileOpen, setMobileOpen }) => {
   const location = useLocation();
   const [scheduledCount, setScheduledCount] = useState(0);
 
@@ -84,60 +84,76 @@ const Sidebar = ({ onLogout, api, adminName }) => {
   }, [api]);
 
   return (
-    <aside style={S.sidebar}>
-      <div style={S.logoWrap}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={S.logoIcon}>K</div>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f9fafb', lineHeight: 1.3, letterSpacing: '-0.02em' }}>KK Admin</p>
-            <p style={{ margin: 0, fontSize: 10, color: '#374151' }}>Control Panel</p>
+    <>
+      {/* Mobile Overlay */}
+      {mobileOpen && (
+        <div 
+          onClick={() => setMobileOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 45, backdropFilter: 'blur(2px)' }}
+          className="admin-mobile-overlay"
+        />
+      )}
+      <aside style={S.sidebar} className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}>
+        <div style={S.logoWrap}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={S.logoIcon}>K</div>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f9fafb', lineHeight: 1.3, letterSpacing: '-0.02em' }}>KK Admin</p>
+              <p style={{ margin: 0, fontSize: 10, color: '#374151' }}>Control Panel</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <nav style={S.nav}>
-        <span style={S.sectionLabel}>Navigation</span>
-        {NAV_ITEMS.map(item => (
-          <NavItem
-            key={item.path}
-            item={item}
-            active={item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)}
-            scheduledCount={scheduledCount}
-          />
-        ))}
-      </nav>
+        <nav style={S.nav}>
+          <span style={S.sectionLabel}>Navigation</span>
+          {NAV_ITEMS.map(item => (
+            <div key={item.path} onClick={() => setMobileOpen(false)}>
+              <NavItem
+                item={item}
+                active={item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)}
+                scheduledCount={scheduledCount}
+              />
+            </div>
+          ))}
+        </nav>
 
-      <div style={S.footer}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', marginBottom: 4 }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#ec4899,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-            {(adminName || 'A')[0].toUpperCase()}
+        <div style={S.footer}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', marginBottom: 4 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#ec4899,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+              {(adminName || 'A')[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#e5e7eb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminName || 'Admin'}</p>
+              <p style={{ margin: 0, fontSize: 10, color: '#374151' }}>Super Admin</p>
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#e5e7eb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminName || 'Admin'}</p>
-            <p style={{ margin: 0, fontSize: 10, color: '#374151' }}>Super Admin</p>
-          </div>
+          <button onClick={onLogout}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '7px 11px', borderRadius: 8, background: 'transparent', border: 'none', cursor: 'pointer', transition: 'background 0.12s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <FiLogOut size={13} style={{ color: '#ef4444' }} />
+            <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Sign Out</span>
+          </button>
         </div>
-        <button onClick={onLogout}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '7px 11px', borderRadius: 8, background: 'transparent', border: 'none', cursor: 'pointer', transition: 'background 0.12s' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-          <FiLogOut size={13} style={{ color: '#ef4444' }} />
-          <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 500 }}>Sign Out</span>
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 };
 
-const TopBar = () => {
+const TopBar = ({ setMobileOpen }) => {
   const location = useLocation();
   const current = NAV_ITEMS.find(n => n.exact ? location.pathname === n.path : location.pathname.startsWith(n.path));
   return (
-    <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px', borderBottom: '1px solid #181818', background: '#080808', position: 'sticky', top: 0, zIndex: 40, flexShrink: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ fontSize: 11, color: '#374151' }}>Admin</span>
-        <span style={{ fontSize: 11, color: '#222' }}>/</span>
-        <span style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>{current?.name || 'Panel'}</span>
+    <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid #181818', background: '#080808', position: 'sticky', top: 0, zIndex: 40, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button className="admin-menu-btn" onClick={() => setMobileOpen(true)} style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 11, color: '#374151' }}>Admin</span>
+          <span style={{ fontSize: 11, color: '#222' }}>/</span>
+          <span style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>{current?.name || 'Panel'}</span>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         {[FiBell, FiSettings].map((Icon, i) => (
@@ -156,6 +172,7 @@ const AdminApp = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -204,11 +221,20 @@ const AdminApp = () => {
         ::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .admin-fade{animation:fadeUp 0.2s ease-out}
+        .admin-menu-btn { display: none !important; }
+        
+        @media(max-width: 768px) {
+          .admin-sidebar { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+          .admin-sidebar.open { transform: translateX(0); }
+          .admin-main-wrapper { margin-left: 0 !important; }
+          .admin-menu-btn { display: flex !important; }
+          .admin-main-content { padding: 16px !important; }
+        }
       `}</style>
-      <Sidebar onLogout={handleLogout} api={adminApi} adminName={adminName} />
-      <div style={{ flex: 1, marginLeft: 220, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <TopBar />
-        <main style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }} className="admin-fade">
+      <Sidebar onLogout={handleLogout} api={adminApi} adminName={adminName} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, marginLeft: 220, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left 0.3s' }}>
+        <TopBar setMobileOpen={setMobileOpen} />
+        <main className="admin-fade admin-main-content" style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }}>
           <Routes>
             <Route path="/"              element={<AdminDashboard     api={adminApi} />} />
             <Route path="/announcements" element={<AdminAnnouncements api={adminApi} />} />

@@ -96,7 +96,20 @@ const AdminDashboard = ({ api }) => {
 
   return (
     <div>
-      <style>{`@keyframes shimmer{0%,100%{opacity:0.5}50%{opacity:1}}`}</style>
+      <style>{`
+        @keyframes shimmer{0%,100%{opacity:0.5}50%{opacity:1}}
+        .admin-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+        .admin-bottom-grid { display: grid; grid-template-columns: 1fr 320px; gap: 14px; }
+        @media(max-width: 1024px) {
+          .admin-bottom-grid { grid-template-columns: 1fr; }
+        }
+        @media(max-width: 768px) {
+          .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media(max-width: 480px) {
+          .admin-stats-grid { grid-template-columns: 1fr; }
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
@@ -109,12 +122,12 @@ const AdminDashboard = ({ api }) => {
       </div>
 
       {/* Stat grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div className="admin-stats-grid">
         {CARDS.map((c, i) => <StatCard key={i} {...c} />)}
       </div>
 
       {/* Bottom row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 14 }}>
+      <div className="admin-bottom-grid">
 
         {/* Top songs */}
         <div style={{ ...card, padding: 20 }}>

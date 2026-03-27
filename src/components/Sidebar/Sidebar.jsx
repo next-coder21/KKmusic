@@ -101,7 +101,7 @@ export default function Sidebar({ onNavigate, collapsed }) {
       width: "100%", transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
     }}>
       {/* ── LOGO ── */}
-      <div style={{ padding: collapsed ? "30px 0" : "40px 24px 30px", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <div style={{ padding: collapsed ? "30px 0" : "40px 24px 30px", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 12 }}>
         {!collapsed && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ width: 8, height: 32, background: "#CCFF00", border: "2px solid #000" }} />}
         <span style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: "-0.05em", textTransform: "uppercase" }}>
           {collapsed ? "M" : "Muve"}<span style={{ color: "#CCFF00" }}>𝄞</span>

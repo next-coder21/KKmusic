@@ -201,16 +201,12 @@ export default function Home() {
 
       {/* ── HERO SECTION (CAROUSEL) ── */}
       <section style={{ marginBottom: 48, position: "relative" }}>
-        <div style={{ 
-          display: "grid", 
-          gridTemplateColumns: "1fr 1fr", 
-          gap: 30, 
-          alignItems: "center",
+        <div className="home-hero-grid" style={{
           background: "#fff",
-          padding: "24px 40px",
+          padding: "24px",
           border: "4px solid #000",
           boxShadow: "10px 10px 0 #000",
-          minHeight: 280
+          minHeight: 220
         }}>
           <div style={{ overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -276,7 +272,7 @@ export default function Home() {
       </section>
 
       {/* ── SECONDARY GRID ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 60, marginBottom: 80 }}>
+      <div className="home-secondary-grid" style={{ marginBottom: 80 }}>
         
         {/* Left: Artist Radar */}
         <section>
@@ -325,7 +321,7 @@ export default function Home() {
       {/* ── PERSONAL MIX (GRID) ── */}
       <section style={{ marginBottom: 60 }}>
         <SectionHeader icon={Headphones} title="Daily Discovery" subtitle="A sound specifically for you" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 24 }}>
             {mixSongs.map((song) => (
               <div key={song.id} style={{ 
                 padding: 24, border: "2.5px solid #000", background: "#fff", 
@@ -354,6 +350,32 @@ export default function Home() {
 
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .home-hero-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 30px;
+          align-items: center;
+        }
+        .home-secondary-grid {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 60px;
+        }
+        @media (max-width: 768px) {
+          .home-hero-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+          .home-hero-grid > div:last-child {
+            display: flex;
+            justify-content: center;
+          }
+          .home-secondary-grid {
+            grid-template-columns: 1fr;
+            gap: 40px;
+          }
+        }
       `}</style>
     </div>
   );

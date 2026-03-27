@@ -74,16 +74,16 @@ export default function Topbar({
       {/* ── LEFT ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
          {/* Desktop Sidebar Toggle */}
-         <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ width: 44, height: 44, background: sidebarCollapsed ? "#000" : "transparent", color: sidebarCollapsed ? "#CCFF00" : "#000", border: sidebarCollapsed ? "none" : "3px solid #000", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} className="sidebar-desktop-toggle">
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ width: 44, height: 44, background: sidebarCollapsed ? "#000" : "transparent", color: sidebarCollapsed ? "#CCFF00" : "#000", border: sidebarCollapsed ? "none" : "3px solid #000", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} className="sidebar-desktop-toggle">
             <PanelLeft size={20} strokeWidth={3} />
-         </button>
+          </button>
 
-         {/* Mobile menu btn */}
-         <button onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)} style={{ padding: 8, background: "transparent", border: "none", cursor: "pointer", color: "#000" }} className="topbar-menu-btn">
-            {mobileSidebarOpen ? <X size={24} strokeWidth={3} /> : <Menu size={24} strokeWidth={3} />}
-         </button>
+          {/* Mobile menu btn */}
+          <button onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)} style={{ padding: 8, background: "transparent", border: "none", cursor: "pointer", color: "#000" }} className="topbar-menu-btn">
+             {mobileSidebarOpen ? <X size={24} strokeWidth={3} /> : <Menu size={24} strokeWidth={3} />}
+          </button>
 
-         <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <nav style={{ display: window.innerWidth < 480 ? "none" : "flex", alignItems: "center", gap: 4 }}>
             {TABS.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} style={{ 
                 padding: "6px 14px", background: "transparent", border: "none", cursor: "pointer",
@@ -98,7 +98,7 @@ export default function Topbar({
       </div>
 
       {/* ── CENTER ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", border: "3px solid #000", background: "#f5f5f5", width: "25%", cursor: "text" }} onClick={() => navigate("/search")}>
+      <div style={{ display: window.innerWidth < 768 ? "none" : "flex", alignItems: "center", gap: 12, padding: "10px 20px", border: "3px solid #000", background: "#f5f5f5", width: "25%", cursor: "text" }} onClick={() => navigate("/search")}>
          <Search size={16} strokeWidth={3} />
          <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10, opacity: 0.3, letterSpacing: "0.05em" }}>GLOBAL_SEARCH</span>
       </div>
@@ -107,7 +107,7 @@ export default function Topbar({
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
          
          {/* Desktop Player Toggle */}
-         <button onClick={() => setPlayerDockedBottom(!playerDockedBottom)} style={{ width: 44, height: 44, background: playerDockedBottom ? "#000" : "transparent", color: playerDockedBottom ? "#CCFF00" : "#000", border: playerDockedBottom ? "none" : "3px solid #000", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} className="player-desktop-toggle">
+         <button onClick={() => setPlayerDockedBottom(!playerDockedBottom)} style={{ width: 44, height: 44, background: playerDockedBottom ? "#000" : "transparent", color: playerDockedBottom ? "#CCFF00" : "#000", border: playerDockedBottom ? "none" : "3px solid #000", cursor: "pointer", display: window.innerWidth < 1025 ? "none" : "flex", alignItems: "center", justifyContent: "center" }} className="player-desktop-toggle">
             <Layout size={20} strokeWidth={3} />
          </button>
 

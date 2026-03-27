@@ -129,7 +129,36 @@ h1,h2,h3,h4,h5,h6 {
    ANIMATIONS
 ═══════════════════════════════════════ */
 @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
-.bone {
-  background:linear-gradient(90deg,#eee 25%,#ddd 50%,#eee 75%);
-  background-size:400px 100%; animation:shimmer 1.4s ease-in-out infinite;
+
+/* ═══════════════════════════════════════
+   TOPBAR RESPONSIVE TOGGLES
+═══════════════════════════════════════ */
+@media (min-width: 1025px) {
+  .topbar-menu-btn        { display: none  !important; }
+  .sidebar-desktop-toggle { display: flex  !important; }
+  .player-desktop-toggle  { display: flex  !important; }
+}
+@media (max-width: 1024px) {
+  .sidebar-desktop-toggle { display: none  !important; }
+  .player-desktop-toggle  { display: none  !important; }
+  .topbar-menu-btn        { display: flex  !important; }
+}
+
+/* ═══════════════════════════════════════
+   GLOBAL MOBILE OVERFLOW GUARDS
+═══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .app-main-content > div > * { max-width: 100%; box-sizing: border-box; }
+  header { padding: 0 12px !important; }
+  h1 { font-size: clamp(1.4rem, 6vw, 2.4rem) !important; }
+  h2 { font-size: clamp(1.2rem, 5vw, 1.75rem) !important; }
+  h3 { font-size: clamp(1rem, 4vw, 1.1rem) !important; }
+  .bottom-bar-wrapper.desk-dock { bottom: 64px !important; z-index: 500 !important; }
+}
+
+/* ═══════════════════════════════════════
+   PHONE (< 480px) TWEAKS
+═══════════════════════════════════════ */
+@media (max-width: 480px) {
+  .app-main-content > div { padding: 16px 16px 160px !important; }
 }

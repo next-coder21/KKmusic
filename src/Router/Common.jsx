@@ -113,10 +113,10 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
         <>
           <div
             onClick={() => setMobileSidebarOpen(false)}
-            style={{ position:"fixed",inset:0,zIndex:60, background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)" }}
+            style={{ position:"fixed",inset:0,zIndex:998, background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)" }}
           />
-          <aside style={{ position:"fixed",top:0,left:0,bottom:0,width:260,zIndex:70, background:"#000", borderRight:"3px solid #000", display:"flex", flexDirection:"column", overflowY:"auto" }}>
-            <Sidebar onNavigate={() => setMobileSidebarOpen(false)} />
+          <aside style={{ position:"fixed",top:0,left:0,bottom:0,width:260,zIndex:999, background:"#000", borderRight:"3px solid #000", display:"flex", flexDirection:"column", overflowY:"auto" }}>
+            <Sidebar onNavigate={() => setMobileSidebarOpen(false)} collapsed={false} />
           </aside>
         </>
       )}
