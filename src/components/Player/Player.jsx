@@ -1,657 +1,429 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
-import { 
-  Play, Pause, Volume2, VolumeX, 
-  Shuffle, Repeat, ListMusic, 
-  Heart, SkipBack, SkipForward, 
-  Loader2, X
+import {
+  Play, Pause, SkipBack, SkipForward, Shuffle, Repeat,
+  Volume2, VolumeX, Heart, ListMusic, Loader2, X,
+  ThumbsUp, ThumbsDown, AlignJustify, Mic2, ChevronDown, Music2, Maximize2, Minimize2, Share2
 } from "lucide-react";
-import { useUser } from "../../context/UserContext";
+import { useUser }   from "../../context/UserContext";
 import { usePlayer } from "../../context/PlayerContext";
-import ApiService from "../../services/ApiService";
-import toast from "react-hot-toast";
+import ApiService    from "../../services/ApiService";
+import { API_CONFIG } from "../../config";
+import toast         from "react-hot-toast";
+import ShareModal    from "./ShareModal";
 
-const Player = () => {
-  // Player state
+/* ── LRC PARSER ────────────────────────────────────────── */
+function parseLRC(raw) {
+  if (!raw || !raw.trim()) return null;
+  const lines  = raw.split("\n");
+  const parsed = [];
+  const tagRe  = /\[(\d{1,2}):(\d{2})(?:[.:](\d+))?\]/g;
+  for (const line of lines) {
+    const tags = [];
+    let match;
+    tagRe.lastIndex = 0;
+    while ((match = tagRe.exec(line)) !== null) {
+      const mins  = parseInt(match[1]);
+      const secs  = parseInt(match[2]);
+      const frac  = match[3] ? parseFloat("0." + match[3]) : 0;
+      tags.push(mins * 60 + secs + frac);
+    }
+    const text = line.replace(/\[.*?\]/g, "").trim();
+    if (text && tags.length > 0) tags.forEach(t => parsed.push({ time: t, text }));
+  }
+  if (parsed.length > 0) {
+    parsed.sort((a, b) => a.time - b.time);
+    return { type: "lrc", lines: parsed };
+  }
+  const plainLines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  return plainLines.length > 0 ? { type: "plain", lines: plainLines } : null;
+}
+
+/* ── LYRICS PANEL ───────────────────────────────────────── */
+function LyricsPanel({ songId, currentTime }) {
+  const [lyrics, setLyrics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const containerRef = useRef(null);
+  const lineRefs = useRef([]);
+
+  useEffect(() => {
+    if (!songId) { setLyrics(null); return; }
+    setLoading(true); setLyrics(null);
+    axios.get(`${ApiService.getBaseUrl()}/music/songs/${songId}/lyrics`)
+      .then(r => setLyrics(parseLRC(r.data.raw || "")))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [songId]);
+
+  useEffect(() => {
+    if (!lyrics || lyrics.type !== "lrc") return;
+    let idx = -1;
+    for (let i = 0; i < lyrics.lines.length; i++) {
+        if (currentTime >= lyrics.lines[i].time) idx = i;
+        else break;
+    }
+    setActiveIdx(idx);
+  }, [currentTime, lyrics]);
+
+  useEffect(() => {
+    if (activeIdx < 0) return;
+    const el = lineRefs.current[activeIdx];
+    if (el && containerRef.current) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeIdx]);
+
+  if (loading) return <div style={{ padding: 40, color: "#CCFF00", fontWeight: 900 }}>LOADING...</div>;
+
+  return (
+    <div ref={containerRef} style={{ flex: 1, overflowY: "auto", padding: "24px 30px" }} className="scrollbar-hide">
+      {lyrics ? lyrics.lines.map((line, i) => (
+        <p key={i} ref={el => lineRefs.current[i] = el} style={{ 
+          fontSize: i === activeIdx ? "1.6rem" : "1.1rem", 
+          fontWeight: 900, textTransform: "uppercase", 
+          lineHeight: 1.1, marginBottom: 14, transition: "all 0.2s",
+          color: i === activeIdx ? "#CCFF00" : "rgba(255,255,255,0.2)"
+        }}>
+          {lyrics.type === "lrc" ? line.text : line}
+        </p>
+      )) : <p style={{ color: "rgba(255,255,255,0.2)", fontWeight: 900, textTransform: "uppercase" }}>No lyrics found.</p>}
+      <div style={{ height: 100 }} />
+    </div>
+  );
+}
+
+/* ── MAIN PLAYER ───────────────────────────────────────── */
+export default function Player({ forceBar, onToggleDock }) {
   const [song, setSong] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.8);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isLooping, setIsLooping] = useState(false);
-  const [isShuffling, setIsShuffling] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isFavoriting, setIsFavoriting] = useState(false);
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [localProgress, setLocalProgress] = useState(0);
+  const [localTime, setLocalTime] = useState(0);
+  const [bufferedProgress, setBufferedProgress] = useState(0); // how much has downloaded
   const [isBuffering, setIsBuffering] = useState(false);
-  const [showQueue, setShowQueue] = useState(false);
-  const [showMobileQueue, setShowMobileQueue] = useState(false);
+  const [panelMode, setPanelMode] = useState("player");
+  const [isShuffling, setIsShuffling] = useState(false);
+  const [isLooping,   setIsLooping]   = useState(false);
   
-  // Refs
+  const [shareOpen,   setShareOpen ]  = useState(false);
+  const [sharedLyrics,setSharedLyrics] = useState(null);
+
   const audioRef = useRef(null);
-  const queueRef = useRef(null);
   const { user } = useUser();
-  const { queue, setQueue, currentSongId, queueUpdated, setFavoritesUpdated } = usePlayer();
-  const email = user?.email;
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const { 
+    queue, setQueue, 
+    currentIndex, setCurrentIndex, 
+    isPlaying, setIsPlaying, 
+    currentTime: globalTime, setCurrentTime: setGlobalTime, 
+    duration, setDuration,
+    queueUpdated, currentSongId 
+  } = usePlayer();
+  
+  const fmt = (s) => {
+    const v = Number.isFinite(s) ? Math.floor(s) : 0;
+    return `${Math.floor(v/60)}:${(v%60).toString().padStart(2,"0")}`;
+  };
 
-  // Format time helper
-  const formatTime = useCallback((seconds) => {
-    const validSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
-    return `${Math.floor(validSeconds / 60)}:${(validSeconds % 60).toString().padStart(2, '0')}`;
-  }, []);
-
-  // Close queue when clicking outside
+  const recordedPlay   = useRef(null);
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (queueRef.current && !queueRef.current.contains(event.target)) {
-        setShowQueue(false);
-        setShowMobileQueue(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    let timeout;
+    if (isPlaying && song?.id && recordedPlay.current !== song.id) {
+       timeout = setTimeout(async () => {
+         try {
+           const BASE = API_CONFIG.MUSIC_URL;
+           await axios.post(`${BASE}/record-play/${song.id}`, {}, { withCredentials: true });
+           recordedPlay.current = song.id;
+         } catch {}
+       }, 5000); // 5 sec of playback = 1 play
+    }
+    return () => clearTimeout(timeout);
+  }, [isPlaying, song?.id]);
 
-  // Fetch queue from API
   useEffect(() => {
-    let isMounted = true;
-    const fetchQueue = async () => {
+    const load = async () => {
+      if (!user?.email) return;
       try {
-        if (!email) return;
-        
-        const response = await axios.get(`${ApiService.getBaseUrl()}/queue/${email}`);
-        const queueIds = response.data.queue;
-        
-        const detailedQueue = await Promise.all(
-          queueIds.map(async (id) => {
-            try {
-              const songRes = await axios.get(`${ApiService.getBaseUrl()}/music/songs/${id}`);
-              return {
-                id,
-                title: songRes.data.title,
-                artist: songRes.data.artist,
-                coverimage: songRes.data.coverimage || '/default-album.jpg',
-                duration: songRes.data.duration || 180 // Default 3 minutes
-              };
-            } catch (err) {
-              console.error(`Error loading song ${id}:`, err);
-              return null;
-            }
-          })
-        );
-        
-        if (isMounted) {
-          const filteredQueue = detailedQueue.filter(Boolean);
-          setQueue(filteredQueue);
-          
-          if (currentSongId) {
-            const index = filteredQueue.findIndex(song => song.id === currentSongId);
-            if (index !== -1) setCurrentIndex(index);
-          }
+        const res = await axios.get(`${ApiService.getBaseUrl()}/queue/${user.email}`);
+        const ids = res.data.queue || [];
+        const detailed = await Promise.all(ids.map(async id => {
+           const r = await axios.get(`${ApiService.getBaseUrl()}/music/songs/${id}`);
+           return { id, title: r.data.title, artist_name: r.data.artist_name, cover_url: r.data.cover_url||"/default-album.jpg", duration: r.data.duration_seconds||180 };
+        }));
+        setQueue(detailed.filter(Boolean));
+        if (currentSongId) {
+          const idx = detailed.findIndex(s => s.id === currentSongId);
+          if (idx !== -1) setCurrentIndex(idx);
         }
-      } catch (err) {
-        console.error("Queue load error:", err);
-      }
+      } catch {}
     };
+    load();
+  }, [user?.email, queueUpdated, currentSongId]);
 
-    fetchQueue();
-    return () => { isMounted = false };
-  }, [email, queueUpdated, currentSongId, setQueue]);
-
-  // Handle track loading
   useEffect(() => {
-    const loadTrack = async () => {
-      if (queue.length > 0 && currentIndex >= 0 && currentIndex < queue.length) {
-        try {
-          setIsLoading(true);
-          setError(null);
-          const newSong = queue[currentIndex];
-          setSong(newSong);
-          setDuration(newSong.duration);
-          setCurrentTime(0);
-          setProgress(0);
-
-          if (audioRef.current) {
-            audioRef.current.pause();
+    const s = queue[currentIndex];
+    if (!s) { setSong(null); return; }
+    setSong(s); setDuration(s.duration);
+    
+    if (audioRef.current) {
+        const streamSrc = `${API_CONFIG.STREAM_URL}/${s.id}`;
+        if (audioRef.current.src !== streamSrc) {
+            audioRef.current.src = streamSrc;
             audioRef.current.currentTime = 0;
-            audioRef.current.src = `${ApiService.getBaseUrl()}/music/stream/${newSong.id}`;
-            
-            await new Promise((resolve) => {
-              const handleCanPlay = () => {
-                audioRef.current.removeEventListener('canplay', handleCanPlay);
-                resolve();
-              };
-              audioRef.current.addEventListener('canplay', handleCanPlay);
-            });
-
-            if (queue.length > 0) {
-              await audioRef.current.play();
-              setIsPlaying(true);
-            }
-          }
-        } catch (err) {
-          setError("Playback failed. Click play to retry.");
-          setIsPlaying(false);
-        } finally {
-          setIsLoading(false);
+            if (isPlaying) audioRef.current.play().catch(() => {});
+        } else {
+            audioRef.current.currentTime = globalTime;
+            setLocalTime(globalTime);
+            if (duration > 0) setLocalProgress((globalTime / duration) * 100);
+            if (isPlaying) audioRef.current.play().catch(() => {});
         }
-      }
-    };
-
-    loadTrack();
+    }
+    return () => { if (audioRef.current) setGlobalTime(audioRef.current.currentTime); };
   }, [currentIndex, queue]);
 
-  // Add this useEffect to check if current song is in favorites
-useEffect(() => {
-  const checkFavoriteStatus = async () => {
-    if (!user?.email || !song?.id) return;
-    
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); setGlobalTime(audioRef.current.currentTime); }
+    else { audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {}); }
+  };
+
+  const onTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const t = audioRef.current.currentTime;
+    setLocalTime(t);
+    if (duration > 0) setLocalProgress((t / duration) * 100);
+    if (Math.floor(t) % 5 === 0) setGlobalTime(t);
+
+    // Update buffered progress bar
+    const audio = audioRef.current;
+    if (audio.buffered.length > 0 && duration > 0) {
+      // Find the buffered range that contains currentTime
+      for (let i = 0; i < audio.buffered.length; i++) {
+        if (audio.buffered.start(i) <= t && t <= audio.buffered.end(i)) {
+          setBufferedProgress((audio.buffered.end(i) / duration) * 100);
+          break;
+        }
+      }
+    }
+  };
+
+  const skip = (dir) => {
+    if (!queue.length) return;
+    setCurrentIndex((currentIndex + dir + queue.length) % queue.length);
+  };
+
+  const seek = (e) => {
+    const p = parseFloat(e.target.value);
+    const t = (p/100) * duration;
+    if (audioRef.current) { audioRef.current.currentTime = t; setLocalTime(t); setLocalProgress(p); setGlobalTime(t); }
+  };
+
+  const handleShareClick = async () => {
+    if (!song) return;
     try {
-      const response = await axios.get(`${ApiService.getBaseUrl()}/favourites/${user.email}`);
-      const favoriteIds = response.data.favourites || [];
-      setIsFavorite(favoriteIds.includes(song.id));
-    } catch (err) {
-      console.error("Error checking favorite status:", err);
+      const res = await axios.get(`${ApiService.getBaseUrl()}/music/songs/${song.id}/lyrics`);
+      setSharedLyrics(parseLRC(res.data.raw || ""));
+    } catch (e) {
+      setSharedLyrics(null);
     }
+    setShareOpen(true);
   };
 
-  checkFavoriteStatus();
-}, [user, song]);
-
-  // Audio controls
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-      audioRef.current.loop = isLooping;
-      audioRef.current.muted = isMuted;
-    }
-  }, [volume, isLooping, isMuted]);
-
-  // Play/pause handler
-  const handlePlayPause = async () => {
-    if (!audioRef.current || isLoading) return;
-    
-    try {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
-        setError(null);
-      }
-      setIsPlaying(!isPlaying);
-    } catch (err) {
-      setError("Playback failed. Click play to retry.");
-      setIsPlaying(false);
-    }
-  };
-
-  // Track navigation
-  const handleTrackChange = (direction) => {
-    if (queue.length === 0 || isLoading) return;
-
-    let newIndex;
-    if (isShuffling) {
-      do {
-        newIndex = Math.floor(Math.random() * queue.length);
-      } while (newIndex === currentIndex && queue.length > 1);
-    } else {
-      newIndex = (currentIndex + direction + queue.length) % queue.length;
-    }
-    setCurrentIndex(newIndex);
-  };
-
-  // Metadata handler
-  const handleMetadataLoad = () => {
-    if (audioRef.current?.readyState > 0) {
-      const audioDuration = audioRef.current.duration;
-      if (Number.isFinite(audioDuration) && audioDuration > 0) {
-        setDuration(audioDuration);
-      }
-    }
-  };
-
-  // Progress updates
-  const updateProgress = () => {
-    if (audioRef.current) {
-      const time = audioRef.current.currentTime;
-      setCurrentTime(time);
-      if (duration > 0) {
-        setProgress((time / duration) * 100);
-      }
-    }
-  };
-
-  // Seek handler
-  const handleProgressChange = (e) => {
-    const newProgress = e.target.value;
-    const newTime = (newProgress / 100) * duration;
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-      setProgress(newProgress);
-      setCurrentTime(newTime);
-    }
-  };
-
-  // Favorite handler
-  // const handleFavorite = async () => {
-  //   if (!user?.email || !song?.id) {
-  //     setError("User not logged in or song missing.");
-  //     return;
-  //   }
-  
-  //   setIsFavoriting(true);
-  
-  //   try {
-  //     await axios.post(`${ApiService.getBaseUrl()}/favourites/add`, {
-  //       email: user.email,
-  //       songIds: [song.id]
-  //     });
-  
-  //     setIsFavorite(!isFavorite);
-  //   } catch (err) {
-  //     console.error("Error updating favorites:", err);
-  //     setError("Failed to update favorites");
-  //   } finally {
-  //     setIsFavoriting(false);
-  //   }
-  // };
-
-  const handleFavorite = async () => {
-    if (!user?.email || !song?.id) {
-      setError("User not logged in or song missing.");
-      return;
-    }
-  
-    setIsFavoriting(true);
-  
-    try {
-      if (isFavorite) {
-        // Correct DELETE request
-        await axios.post(`${ApiService.getBaseUrl()}/favourites/remove`, {
-
-            email: user.email, 
-            songIds: [song.id] 
-          
-        });
-        toast.success(`${song.title} removed from favorites`);
-      } else {
-        await axios.post(`${ApiService.getBaseUrl()}/favourites/add`, {
-          email: user.email,
-          songIds: [song.id]
-        });
-        toast.success(`${song.title} added to favorites`);
-      }
-  
-      setIsFavorite(!isFavorite);
-      setFavoritesUpdated(prev => !prev); // Update favorites state globally
-    } catch (err) {
-      console.error("Error updating favorites:", err);
-      setError("Failed to update favorites");
-      toast.error("Failed to update favorites");
-    } finally {
-      setIsFavoriting(false);
-    }
-  };
-
-  // Error retry handler
-  const handleRetry = async () => {
-    setError(null);
-    await handlePlayPause();
-  };
-
-  // QueueList component
-  const QueueList = ({ mobile = false }) => (
-    <div 
-      ref={queueRef}
-      className={`${
-        mobile ? 
-        "fixed inset-x-0 bottom-20 rounded-t-2xl h-[60vh] pb-4" :
-        "absolute bottom-20 right-0 w-80 rounded-xl"
-      } bg-gray-800/95 backdrop-blur-lg shadow-2xl border border-white/10 overflow-y-auto z-50 transition-all`}
-    >
-      <div className="sticky top-0 bg-gray-800/90 p-3 flex justify-between items-center border-b border-white/10">
-        <h3 className="text-sm font-bold text-white">Queue ({queue.length})</h3>
-        <button 
-          onClick={() => mobile ? setShowMobileQueue(false) : setShowQueue(false)}
-          className="text-gray-400 hover:text-white p-1"
-        >
-          <X size={18} />
-        </button>
-      </div>
-      <div className="p-3 space-y-1">
-        {queue.length > 0 ? (
-          queue.map((track, index) => (
-            <button
-              key={`${track.id}-${index}`}
-              onClick={() => {
-                if (index !== currentIndex) setCurrentIndex(index);
-                setShowQueue(false);
-                setShowMobileQueue(false);
-              }}
-              className={`w-full p-3 rounded-lg flex items-center justify-between text-sm ${
-                index === currentIndex 
-                  ? "bg-cyan-500/20"
-                  : "hover:bg-gray-700/50"
-              } transition-colors`}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <img 
-                  src={track.coverimage} 
-                  alt="Album cover" 
-                  className="w-10 h-10 rounded-md object-cover"
-                  onError={(e) => e.target.src = '/default-album.jpg'}
-                />
-                <div className="text-left min-w-0">
-                  <p className="text-white truncate">{track.title}</p>
-                  <p className="text-xs text-cyan-400 truncate">{track.artist}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">
-                  {formatTime(track.duration)}
-                </span>
-                {index === currentIndex && (
-                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                )}
-              </div>
-            </button>
-          ))
-        ) : (
-          <p className="text-sm text-gray-400 text-center py-4">Queue is empty</p>
-        )}
-      </div>
+  const ProgressBar = ({ height = 5 }) => (
+    <div style={{ position: "relative", height, background: "rgba(255,255,255,0.1)", cursor: "pointer" }}>
+      {/* Downloaded buffer — light grey ghost track */}
+      <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${bufferedProgress}%`, background: "rgba(255,255,255,0.15)", transition: "width 0.5s linear" }} />
+      {/* Played portion */}
+      <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${localProgress}%`, background: "#CCFF00", transition: "width 0.1s" }} />
+      {/* Buffering spinner knob */}
+      {isBuffering && (
+        <div style={{ position: "absolute", top: "50%", left: `${localProgress}%`, transform: "translate(-50%, -50%)", width: 10, height: 10, borderRadius: "50%", background: "rgba(204,255,0,0.4)", animation: "pulse-dot 1s infinite" }} />
+      )}
+      <input type="range" min="0" max="100" value={localProgress} onChange={seek}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+      />
     </div>
   );
 
-  // ControlButton component
-  const ControlButton = ({ 
-    icon: Icon, 
-    onClick, 
-    active = false, 
-    disabled = false, 
-    mobile = false,
-    ariaLabel 
-  }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      className={`p-2 rounded-full ${
-        mobile ? "text-2xl" : "text-lg"
-      } ${
-        active ? "text-cyan-400 bg-cyan-900/20" : "text-gray-300 hover:bg-gray-800/30"
-      } transition-colors disabled:opacity-50 disabled:pointer-events-none`}
-    >
-      <Icon size={mobile ? 12 : 20} />
+  const Ctrl = ({ icon:Icon, onClick, active, size=20 }) => (
+    <button onClick={onClick} style={{ background: "transparent", border: "none", cursor: "pointer", color: active ? "#CCFF00" : "#fff", opacity: active ? 1 : 0.4, transition: "0.2s" }}>
+      <Icon size={size} strokeWidth={active ? 3 : 2} />
     </button>
   );
 
-  // Error display
-  if (error) {
-    return (
-      <div className="w-full p-3 bg-red-800/90 backdrop-blur-lg rounded-lg flex items-center justify-between text-sm animate-slide-up">
-        <span className="truncate flex-1">{error}</span>
-        <div className="flex gap-2 ml-3">
-          <button 
-            className="px-3 py-1 bg-red-900/30 rounded-full hover:bg-red-900/40 text-xs"
-            onClick={handleRetry}
-          >
-            Retry
-          </button>
-          <button 
-            className="px-3 py-1 bg-red-900/30 rounded-full hover:bg-red-900/40 text-xs"
-            onClick={() => setError(null)}
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className=" bg-gray-900/95 backdrop-blur-lg border-t border-white/5">
-      {/* Audio element */}
-      <audio
-        ref={audioRef}
-        onLoadedMetadata={handleMetadataLoad}
-        onTimeUpdate={updateProgress}
-        onEnded={() => queue.length > 0 && handleTrackChange(1)}
-        onError={() => setError("Playback failed")}
-        onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
-      />
-
-      {/* Desktop Layout */}
-      <div className="hidden md:flex items-center justify-between px-6 py-3 h-24 gap-4">
-        {song ? (
-          <>
-            {/* Left Section - Song Info */}
-            <div className="flex items-center gap-4 flex-1 max-w-[30%]">
-              <img 
-                src={song.coverimage} 
-                alt="Album art" 
-                className="w-14 h-14 rounded-lg object-cover shadow-lg"
-                onError={(e) => e.target.src = '/default-album.jpg'}
-              />
-              <div className="min-w-0">
-                <h3 className="text-base font-medium text-white truncate">{song.title}</h3>
-                <p className="text-sm text-cyan-400 truncate">{song.artist}</p>
-              </div>
-              <button 
-                onClick={handleFavorite}
-                className="text-red-400 hover:text-red-300 transition-colors ml-2"
-                disabled={isFavoriting}
-                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              >
-                <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-            </div>
-
-            {/* Center Controls */}
-            <div className="flex flex-col items-center gap-3 flex-1 max-w-[40%]">
-              <div className="flex items-center gap-3">
-                <ControlButton 
-                  icon={Shuffle} 
-                  onClick={() => setIsShuffling(!isShuffling)}
-                  active={isShuffling}
-                  disabled={isLoading || queue.length <= 1}
-                  ariaLabel="Toggle shuffle"
-                />
-                <ControlButton 
-                  icon={SkipBack} 
-                  onClick={() => handleTrackChange(-1)}
-                  disabled={isLoading || queue.length === 0}
-                  ariaLabel="Previous track"
-                />
-                <button
-                  onClick={handlePlayPause}
-                  className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:pointer-events-none"
-                  disabled={isLoading || isBuffering}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                >
-                  {isLoading || isBuffering ? (
-                    <Loader2 className="w-6 h-6 text-white animate-spin" />
-                  ) : isPlaying ? (
-                    <Pause size={24} className="text-white" />
-                  ) : (
-                    <Play size={24} className="text-white pl-0.5" />
-                  )}
-                </button>
-                <ControlButton 
-                  icon={SkipForward} 
-                  onClick={() => handleTrackChange(1)}
-                  disabled={isLoading || queue.length === 0}
-                  ariaLabel="Next track"
-                />
-                <ControlButton 
-                  icon={Repeat} 
-                  onClick={() => setIsLooping(!isLooping)}
-                  active={isLooping}
-                  ariaLabel="Toggle repeat"
-                />
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full flex items-center gap-3 text-sm text-gray-400">
-                <span>{formatTime(currentTime)}</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={progress}
-                  onChange={handleProgressChange}
-                  className="flex-1 h-2 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
-                  disabled={isLoading}
-                  aria-label="Track progress"
-                />
-                <span>{formatTime(duration)}</span>
-              </div>
-            </div>
-
-            {/* Right Section - Volume & Queue */}
-            <div className="flex items-center gap-4 flex-1 max-w-[30%] justify-end">
-              <div className="flex items-center gap-2 w-36">
-                <Volume2 size={20} className="text-gray-300" />
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
-                  aria-label="Volume control"
-                />
-              </div>
-              {queue.length > 0 && (
-                <button 
-                  onClick={() => setShowQueue(!showQueue)}
-                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-full hover:bg-gray-800/30 relative"
-                  aria-label="Show queue"
-                >
-                  <ListMusic size={20} />
-                  {showQueue && <QueueList />}
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="w-full text-center text-gray-400 text-sm">
-            {isLoading ? "Loading..." : "Select a song to play"}
+  const TransportControls = ({ mode = "full" }) => (
+    <div style={{ padding: mode === "lyrics" ? "20px 30px 40px" : "0", borderTop: mode === "lyrics" ? "1px solid rgba(255,255,255,0.1)" : "none", background: "#000" }}>
+      <div style={{ marginBottom: 24 }}>
+          <ProgressBar height={5} />
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10, fontWeight: 900, opacity: 0.3 }}>
+            <span>{fmt(localTime)}</span><span>{fmt(duration)}</span>
           </div>
-        )}
       </div>
-
-      {/* Mobile Layout */}
-      <div className="md:hidden flex flex-col p-3 gap-3">
-        {song ? (
-          <>
-            {/* Song Info & Progress */}
-            <div className="flex items-center gap-3">
-              <img 
-                src={song.coverimage} 
-                alt="Album art" 
-                className="w-12 h-12 rounded-lg object-cover"
-                onError={(e) => e.target.src = '/default-album.jpg'}
-              />
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-white truncate">{song.title}</h3>
-                <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
-                <div className="w-full flex items-center gap-2 text-xs text-gray-400 mt-1">
-                  <span>{formatTime(currentTime)}</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={progress}
-                    onChange={handleProgressChange}
-                    className="flex-1 h-1 bg-gray-800 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400"
-                    disabled={isLoading}
-                    aria-label="Track progress"
-                  />
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-              <button 
-                onClick={handleFavorite}
-                className="text-red-400 hover:text-red-300"
-                disabled={isFavoriting}
-                aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              >
-                <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Ctrl icon={Shuffle} active={isShuffling} onClick={() => setIsShuffling(!isShuffling)} />
+          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+              <Ctrl icon={SkipBack} onClick={() => skip(-1)} size={22} />
+              <button onClick={togglePlay} style={{ width: 56, height: 56, background: "#CCFF00", border: "none", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {isBuffering
+                    ? <Loader2 size={26} color="#000" style={{ animation: "spin 0.8s linear infinite" }} />
+                    : isPlaying
+                      ? <Pause size={28} color="#000" fill="#000" />
+                      : <Play size={28} color="#000" fill="#000" style={{ marginLeft: 3 }} />
+                  }
               </button>
-            </div>
-
-            {/* Main Controls */}
-            <div className="flex items-center justify-between">
-              <ControlButton 
-                icon={Shuffle} 
-                onClick={() => setIsShuffling(!isShuffling)}
-                active={isShuffling}
-                mobile
-                ariaLabel="Toggle shuffle"
-              />
-              <ControlButton 
-                icon={Repeat} 
-                onClick={() => setIsLooping(!isLooping)}
-                active={isLooping}
-                mobile
-                ariaLabel="Toggle repeat"
-              />
-              <ControlButton 
-                icon={SkipBack} 
-                onClick={() => handleTrackChange(-1)}
-                mobile
-                ariaLabel="Previous track"
-              />
-              <button
-                onClick={handlePlayPause}
-                className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:pointer-events-none"
-                disabled={isLoading || isBuffering}
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isLoading || isBuffering ? (
-                  <Loader2 className="w-6 h-6 text-white animate-spin" />
-                ) : isPlaying ? (
-                  <Pause size={24} className="text-white" />
-                ) : (
-                  <Play size={24} className="text-white pl-0.5" />
-                )}
-              </button>
-              <ControlButton 
-                icon={SkipForward} 
-                onClick={() => handleTrackChange(1)}
-                mobile
-                ariaLabel="Next track"
-              />
-              
-               <button 
-                  onClick={() => setShowMobileQueue(!showMobileQueue)}
-                  className="text-gray-300 hover:text-cyan-400 p-2 rounded-full hover:bg-gray-800/30"
-                  aria-label="Show queue"
-                >
-                  <ListMusic size={12} />
-                  {showMobileQueue && <QueueList mobile />}
-                </button>
-            </div>
-
-
-            
-          </>
-        ) : (
-          <div className="text-center text-gray-400 text-sm py-4">
-            {isLoading ? "Loading..." : "No song selected"}
+              <Ctrl icon={SkipForward} onClick={() => skip(1)} size={22} />
           </div>
-        )}
+          <Ctrl icon={Repeat} active={isLooping} onClick={() => setIsLooping(!isLooping)} />
       </div>
     </div>
   );
-};
 
-export default Player;
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#000", color: "#fff" }}>
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        onTimeUpdate={onTimeUpdate}
+        onEnded={() => skip(1)}
+        onCanPlay={() => {
+          setIsBuffering(false);
+          if (isPlaying) audioRef.current?.play().catch(() => {});
+        }}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => { setIsBuffering(false); setIsPlaying(true); }}
+        onProgress={() => {
+          const audio = audioRef.current;
+          if (!audio || !audio.buffered.length || !duration) return;
+          for (let i = 0; i < audio.buffered.length; i++) {
+            if (audio.buffered.start(i) <= audio.currentTime && audio.currentTime <= audio.buffered.end(i)) {
+              setBufferedProgress((audio.buffered.end(i) / duration) * 100);
+              break;
+            }
+          }
+        }}
+      />
+      <style>{`
+        @keyframes pulse-dot {
+          0%,100% { opacity:0.3; transform:translate(-50%,-50%) scale(1); }
+          50% { opacity:1; transform:translate(-50%,-50%) scale(1.5); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      
+      <ShareModal 
+        isOpen={shareOpen} 
+        onClose={() => setShareOpen(false)} 
+        song={song} 
+        lyrics={sharedLyrics} 
+        currentTime={localTime} 
+      />
+
+      {!forceBar && (
+        <div className="player-panel-view" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 30px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ display: "flex", gap: 24 }}>
+                {["player", "queue", "lyrics"].map(m => (
+                  <button key={m} onClick={() => setPanelMode(m)} style={{ background: "transparent", border: "none", color: panelMode === m ? "#CCFF00" : "#fff", fontWeight: 900, textTransform: "uppercase", fontSize: 12, cursor: "pointer", letterSpacing: "0.1em" }}>{m}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 14 }}>
+                 <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer" }} title="Share Lyrics"><Share2 size={16} strokeWidth={3} /></button>
+                 <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer" }} title="Dock to Bottom"><Minimize2 size={16} strokeWidth={3} /></button>
+              </div>
+           </div>
+           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }} className="scrollbar-hide">
+              {panelMode === "player" && (
+                  <div style={{ padding: "30px", flex: 1, display: "flex", flexDirection: "column" }}>
+                      {song ? (
+                        <>
+                           <div style={{ width: "100%", aspectRatio: "1", border: "3px solid #CCFF00", marginBottom: 30, overflow: "hidden", flexShrink: 0, background: "#111" }}>
+                             <img src={song.cover_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+                           </div>
+                           <h2 style={{ fontSize: "1.8rem", fontWeight: 900, textTransform: "uppercase", lineHeight: 0.95, letterSpacing: "-0.04em", margin: "0 0 10px", overflow: "hidden", whiteSpace: "nowrap" }}>{song.title}</h2>
+                           <p style={{ color: "#CCFF00", fontWeight: 900, textTransform: "uppercase", fontSize: 13, margin: "0 0 40px" }}>{song.artist_name}</p>
+                           <TransportControls />
+                        </>
+                      ) : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textTransform: "uppercase", fontWeight: 900, fontSize: 11, opacity: 0.2 }}>SELECT A TRACK</div>}
+                  </div>
+              )}
+              {panelMode === "queue" && (
+                <div style={{ padding: "24px 30px" }}>
+                   {queue.map((track, i) => (
+                      <div key={i} onClick={() => setCurrentIndex(i)} style={{ display: "flex", gap: 14, padding: "12px", border: currentIndex === i ? "2px solid #CCFF00" : "2px solid transparent", background: currentIndex === i ? "rgba(204,255,0,0.05)" : "transparent", cursor: "pointer", marginBottom: 6 }}>
+                        <img src={track.cover_url} style={{ width: 44, height: 44, border: "1px solid rgba(255,255,255,0.1)" }} alt="" />
+                        <div style={{ overflow: "hidden" }}>
+                           <p style={{ fontWeight: 900, textTransform: "uppercase", fontSize: 11, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</p>
+                           <p style={{ fontWeight: 700, fontSize: 10, color: "#CCFF00", textTransform: "uppercase", marginTop: 2 }}>{track.artist_name}</p>
+                        </div>
+                      </div>
+                   ))}
+                </div>
+              )}
+              {panelMode === "lyrics" && (
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+                      <LyricsPanel songId={song?.id} currentTime={localTime} />
+                      <TransportControls mode="lyrics" />
+                  </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {forceBar && (
+        <div style={{ padding: "12px 40px", background: "#000", display: "flex", alignItems: "center", gap: 0, minHeight: 80, width: "100%" }}>
+          {song ? (
+            <>
+              {/* Info Area */}
+              <div style={{ display: "flex", alignItems: "center", gap: 20, minWidth: 300, flex: 1 }}>
+                <img src={song.cover_url} style={{ width: 56, height: 56, border: "2px solid #CCFF00" }} alt="" />
+                <div style={{ overflow: "hidden" }}>
+                   <p style={{ fontWeight: 900, textTransform: "uppercase", fontSize: 16, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em" }}>{song.title}</p>
+                   <p style={{ fontWeight: 900, color: "#CCFF00", fontSize: 11, textTransform: "uppercase", margin: 0 }}>{song.artist_name}</p>
+                </div>
+              </div>
+
+              {/* Central Transport & Progress */}
+              <div style={{ flex: 3, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 60px" }}>
+                 <div style={{ display: "flex", justifyContent: "center", gap: 40, alignItems: "center", marginBottom: 8 }}>
+                    <Ctrl icon={Shuffle} active={isShuffling} size={16} onClick={() => setIsShuffling(!isShuffling)} />
+                    <Ctrl icon={SkipBack} onClick={() => skip(-1)} size={18} />
+                     <button onClick={togglePlay} style={{ width: 48, height: 48, background: "#CCFF00", border: "none", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                       {isBuffering
+                         ? <Loader2 size={22} color="#000" style={{ animation: "spin 0.8s linear infinite" }} />
+                         : isPlaying
+                           ? <Pause size={24} color="#000" fill="#000" />
+                           : <Play size={24} color="#000" fill="#000" style={{ marginLeft: 3 }} />
+                       }
+                     </button>
+                    <Ctrl icon={SkipForward} onClick={() => skip(1)} size={18} />
+                    <Ctrl icon={Repeat} active={isLooping} size={16} onClick={() => setIsLooping(!isLooping)} />
+                 </div>
+                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.3, width: 35 }}>{fmt(localTime)}</span>
+                    <div style={{ flex: 1 }}><ProgressBar height={6} /></div>
+                    <span style={{ fontSize: 10, fontWeight: 900, opacity: 0.3, width: 35 }}>{fmt(duration)}</span>
+                 </div>
+              </div>
+
+              {/* Action Area */}
+              <div style={{ display: "flex", gap: 24, alignItems: "center", justifyContent: "flex-end", flex: 1, minWidth: 150 }}>
+                 <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Share Lyrics"><Share2 size={18} strokeWidth={3} /></button>
+                  <Ctrl 
+                    icon={ListMusic} 
+                    size={20} 
+                    active={panelMode === "queue"}
+                    onClick={() => {
+                      setPanelMode("queue");
+                      if (forceBar) onToggleDock();
+                    }}
+                  />
+                 <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Undock to Panel">
+                    <Maximize2 size={20} strokeWidth={3} />
+                 </button>
+              </div>
+            </>
+          ) : <p style={{ flex: 1, fontSize: 10, fontWeight: 900, textAlign: "center", opacity: 0.2 }}>CHANNELS_IDLE</p>}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
 import ApiService from "../services/ApiService";
+import { API_CONFIG } from "../config";
 
 const UserContext = createContext();
 
@@ -11,7 +12,7 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await axios.get(`${ApiService.getBaseUrl()}/check-auth`, { withCredentials: true });
+        const response = await axios.get(`${API_CONFIG.AUTH_URL}/check-auth`, { withCredentials: true });
         setUser(response.data.user);
       } catch (error) {
         setUser(null);

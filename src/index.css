@@ -1,21 +1,128 @@
 @import "tailwindcss";
 
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
+/* ═══════════════════════════════════════
+   THEME TOKENS - MUSIKLY EDITION
+═══════════════════════════════════════ */
+[data-theme="musikly"] {
+  --bg-root: #ffffff;
+  --bg-sidebar: #000000;
+  --bg-card: #ffffff;
+  --bg-card-hover: #CCFF00;
+  --bg-input: #f5f5f5;
+  --bg-player: #000000;
+  --accent: #CCFF00;
+  --accent-hover: #b8e600;
+  --text-primary: #000000;
+  --text-secondary: rgba(0,0,0,0.5);
+  --text-muted: rgba(0,0,0,0.2);
+  --border: #000000;
+  --border-width: 3px;
+  --shadow: rgba(0,0,0,0.1);
+}
+
+[data-theme="dark"] {
+  --bg-root:#111114;--bg-sidebar:#1a1a1e;--bg-card:#1e1e23;--bg-card-hover:#252529;
+  --bg-input:#252529;--bg-player:#16161a;--accent:#6c5ce7;--accent-hover:#5a4bd1;
+  --text-primary:#f0eff5;--text-secondary:#a09db8;--text-muted:#52506a;
+  --border:rgba(255,255,255,0.06);--shadow:rgba(0,0,0,0.6);
+}
+
+/* ═══════════════════════════════════════
+   BASE & TYPOGRAPHY
+═══════════════════════════════════════ */
+*,*::before,*::after { box-sizing:border-box; }
+
+body {
+  background:var(--bg-root); color:var(--text-primary);
+  font-family:'Inter', sans-serif; font-size:14px;
+  -webkit-font-smoothing:antialiased; overflow:hidden; height:100vh;
+}
+
+h1,h2,h3,h4,h5,h6 { 
+  font-weight: 900 !important; 
+  text-transform: uppercase !important;
+  letter-spacing: -0.04em !important;
+}
+
+/* ═══════════════════════════════════════
+   APP UI COMPONENTS - FIXED GRID
+═══════════════════════════════════════ */
+.app-shell {
+  display:grid;
+  height:100vh; width:100vw; overflow:hidden;
+}
+
+/* Desktop layout (3 columns) */
+@media (min-width:1025px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr 340px;
+    grid-template-rows: 64px 1fr;
+    grid-template-areas: 
+      "sidebar topbar player"
+      "sidebar main player";
   }
-  
-  .scrollbar-default::-webkit-scrollbar {
-    @apply w-2 h-2;
+  .player-wrapper { 
+    grid-area: player; 
+    border-left: var(--border-width) solid #000;
+    background: #000;
+    display: flex; flex-direction: column; overflow: hidden;
   }
-  
-  .scrollbar-default::-webkit-scrollbar-track {
-    @apply bg-gray-800;
+  .bottom-bar-wrapper { display: none; height: 80px; }
+  .bottom-bar-wrapper.desk-dock { 
+    display: block; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    height: 80px; background: #000; border-top: 3px solid #CCFF00;
   }
-  
-  .scrollbar-default::-webkit-scrollbar-thumb {
-    @apply bg-gray-600 rounded-full;
+}
+
+.app-shell.player-docked {
+  height: calc(100vh - 80px) !important;
+}
+
+/* Sidebar Min State overrides */
+.app-shell.sidebar-min .sidebar-desktop { width: 64px !important; }
+
+@media (max-width:1024px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: 64px 1fr;
+    grid-template-areas: 
+      "sidebar topbar"
+      "sidebar main";
   }
-  
-  .scrollbar-default::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-500;
+  .player-wrapper { display: none !important; }
+  .bottom-bar-wrapper { display: block; position: fixed; bottom: 56px; left: 0; right: 0; z-index: 50; }
+}
+
+@media (max-width:768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "topbar" "main";
   }
+  .sidebar-desktop { display: none !important; }
+  .topbar-menu-btn { display: flex !important; }
+  .bottom-bar-wrapper { bottom: 64px; }
+}
+
+/* Visibility Utility */
+.topbar-menu-btn { display: none !important; }
+.topbar-mobile-logo { display: none !important; }
+@media (max-width: 768px) {
+  .topbar-mobile-logo { display: flex !important; }
+}
+
+/* ═══════════════════════════════════════
+   SCROLLBARS
+═══════════════════════════════════════ */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#ddd; border-radius:10px; }
+.scrollbar-hide::-webkit-scrollbar { display:none; }
+
+/* ═══════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════ */
+@keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+.bone {
+  background:linear-gradient(90deg,#eee 25%,#ddd 50%,#eee 75%);
+  background-size:400px 100%; animation:shimmer 1.4s ease-in-out infinite;
+}

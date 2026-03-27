@@ -1,4 +1,5 @@
-const API_BASE_URL = "http://localhost:5000"; // Backend URL
+import { API_CONFIG } from "../config";
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 const songs = [
   { id: 1, title: "Iraivaa", artist: "Artist 1", url: `${API_BASE_URL}/stream/Iraivaa.mp3` }

@@ -1,248 +1,167 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
+import { Play, X, Clock, Music } from "lucide-react";
 import { useUser } from "../../../context/UserContext";
 import { usePlayer } from "../../../context/PlayerContext";
-import { FiPlay, FiX, FiClock, FiMusic } from "react-icons/fi";
 import ApiService from "../../../services/ApiService";
+import { API_CONFIG } from "../../../config";
+import { songDefaults, fmtDuration } from "../../../utils/songUtils";
+import Ace from "../../../assets/Ace.png";
 
-const Playlist = () => {
-  const [songs, setSongs] = useState([]);
+const Bone = ({ w = "100%", h = 14, r = 6 }) => <div className="bone" style={{ width: w, height: h, borderRadius: r }} />;
+
+export default function Playlist() {
+  const [songs,       setSongs      ] = useState([]);
   const [openedAlbum, setOpenedAlbum] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading,     setLoading    ] = useState(true);
   const { user } = useUser();
   const { setCurrentSongId, setQueueUpdated } = usePlayer();
   const email = user?.email;
 
   useEffect(() => {
-    const fetchSongs = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`${ApiService.getBaseUrl()}/music/songs`);
-        setSongs(data);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSongs();
+    axios.get(`${API_CONFIG.MUSIC_URL}/songs`)
+      .then(r => setSongs(r.data || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const albums = songs.reduce((acc, song) => {
-    const album = song.album || "Various";
-    if (!acc[album]) acc[album] = [];
-    acc[album].push(song);
+  const albums = songs.reduce((acc, s) => {
+    const a = s.album_title || "Various";
+    if (!acc[a]) acc[a] = [];
+    acc[a].push(s);
     return acc;
   }, {});
 
-  const playSong = async (id) => {
+  const playSong = async id => {
     if (!email) return;
     try {
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, {
-        email,
-        songIds: [id],
-        album: false
-      });
-      setCurrentSongId(id);
-      setQueueUpdated(prev => !prev);
-    } catch (err) {
-      console.error("Play error:", err);
-    }
+      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: [id], album: false });
+      setCurrentSongId(id); setQueueUpdated(p => !p);
+    } catch {}
   };
 
-  const playAlbum = async (album) => {
+  const playAlbum = async album => {
     if (!email) return;
     try {
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, {
-        email,
-        songIds: albums[album].map(s => s.id),
-        album: true
-      });
-      setCurrentSongId(albums[album][0].id);
-      setQueueUpdated(prev => !prev);
-    } catch (err) {
-      console.error("Album error:", err);
-    }
-  };
-
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: albums[album].map(s => s.id), album: true });
+      setCurrentSongId(albums[album][0].id); setQueueUpdated(p => !p);
+    } catch {}
   };
 
   return (
-    <div className="mx-auto ">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-6xl md:text-5xl lg:text-5xl xl:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
-            Album
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">Browse your music collection</p>
-        </div>
-        <span className="text-xs sm:text-sm px-3 py-1 bg-gray-800 rounded-full text-gray-300">
-          {Object.keys(albums).length} {Object.keys(albums).length === 1 ? 'Album' : 'Albums'}
-        </span>
-      </header>
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Albums</h2>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{Object.keys(albums).length} albums</span>
+      </div>
 
       {loading ? (
-        <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="animate-pulse flex-shrink-0">
-              <div className="w-16 h-16 sm:w-56 sm:h-16 md:w-16 md:h-16 bg-gray-800 rounded-xl" />
-              <div className="mt-2 h-4 bg-gray-800 rounded w-3/4" />
-              <div className="mt-1 h-3 bg-gray-800 rounded w-1/2" />
+        <div style={{ display: "flex", gap: 16, overflow: "hidden" }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{ flexShrink: 0, width: 140, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Bone h={140} r={10} /><Bone w="70%" h={12} /><Bone w="50%" h={10} />
             </div>
           ))}
         </div>
       ) : (
-        <motion.div
-          className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide hover:scrollbar-default"
-          layout
-        >
+        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="scrollbar-hide">
           {Object.entries(albums).map(([album, tracks]) => (
-            <motion.div
-              key={album}
-              className="group flex-shrink-0"
-              layout
-              transition={{ duration: 0.2 }}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="relative">
-                <div
-                  className="w-24 h-24 sm:w-40 sm:h-40 md:w-36 md:h-36 rounded-xl overflow-hidden cursor-pointer relative shadow-lg"
-                  onClick={() => setOpenedAlbum(album)}
-                  onDoubleClick={() => playAlbum(album)}
+            <motion.div key={album} whileHover={{ y: -4 }} style={{ flexShrink: 0, width: 140, cursor: "pointer" }}>
+              <div style={{ position: "relative", width: 140, height: 140, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 8, boxShadow: "0 4px 16px var(--shadow)" }}
+                onClick={() => setOpenedAlbum(album)}
+              >
+                <img src={tracks[0]?.cover_url || Ace} alt={album} style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform .4s" }}
+                  onMouseEnter={e => e.target.style.transform = "scale(1.06)"}
+                  onMouseLeave={e => e.target.style.transform = "scale(1)"}
+                />
+                <div style={{
+                  position: "absolute", inset: 0, background: "rgba(0,0,0,.4)",
+                  opacity: 0, transition: "opacity .2s",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                  onMouseLeave={e => e.currentTarget.style.opacity = "0"}
                 >
-                  <img
-                    src={tracks[0]?.coverimage || "/default-album.jpg"}
-                    alt={album}
-                    className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                  <button onClick={e => { e.stopPropagation(); playAlbum(album); }} style={{
+                    width: 36, height: 36, borderRadius: "50%", background: "var(--accent)",
+                    border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 4px 12px var(--accent-glow)",
+                  }}>
+                    <Play size={15} style={{ color: "#fff", transform: "translateX(1px)" }} />
+                  </button>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{album}</p>
+              <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "3px 0 0" }}>{tracks.length} {tracks.length === 1 ? "track" : "tracks"}</p>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Album side panel */}
+      <AnimatePresence>
+        {openedAlbum && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,.7)", backdropFilter: "blur(6px)" }}
+              onClick={() => setOpenedAlbum(null)}
+            />
+            <motion.div initial={{ x: "100%", opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: "100%", opacity: 0 }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 50, width: "min(420px,100vw)", background: "var(--bg-sidebar)", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", boxShadow: "-16px 0 48px var(--shadow)" }}
+            >
+              {/* Header */}
+              <div style={{ padding: "28px 20px 16px", background: "linear-gradient(to bottom,var(--bg-card),var(--bg-sidebar))", borderBottom: "1px solid var(--border)", flexShrink: 0, position: "relative" }}>
+                <button onClick={() => setOpenedAlbum(null)} style={{ position: "absolute", top: 12, right: 12, padding: 6, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-secondary)", display: "flex" }}>
+                  <X size={16} />
+                </button>
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-end", marginTop: 8 }}>
+                  <img src={albums[openedAlbum]?.[0]?.cover_url || Ace} alt={openedAlbum}
+                    style={{ width: 96, height: 96, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: "1px solid var(--border)", boxShadow: "0 8px 24px var(--shadow)" }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-                    <div className="w-full p-3">
-                      <p className="font-medium text-white truncate text-sm md:text-base">{album}</p>
-                      <p className="text-xs text-gray-300">{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</p>
-                    </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playAlbum(album);
-                      }}
-                      className="absolute right-4 top-4 bg-cyan-600 hover:bg-cyan-700 p-2 rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <FiPlay className="text-white w-4 h-4 md:w-5 md:h-5" />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--accent)", margin: "0 0 6px" }}>Album</p>
+                    <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: "var(--text-primary)", margin: "0 0 4px", lineHeight: 1.2 }}>{openedAlbum}</h2>
+                    <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+                      {albums[openedAlbum]?.[0]?.artist_name || "Unknown Artist"} · {albums[openedAlbum].length} songs
+                    </p>
+                    <button onClick={() => playAlbum(openedAlbum)} style={{
+                      display: "flex", alignItems: "center", gap: 7, padding: "8px 18px", borderRadius: 20,
+                      background: "var(--accent)", border: "none", cursor: "pointer", color: "#fff",
+                      fontWeight: 700, fontSize: 12, fontFamily: "'Outfit',sans-serif",
+                      boxShadow: "0 3px 12px var(--accent-glow)",
+                    }}>
+                      <Play size={13} style={{ transform: "translateX(1px)" }} /> Play Album
                     </button>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
 
-      <AnimatePresence>
-        {openedAlbum && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-40"
-              onClick={() => setOpenedAlbum(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, x: '100%' }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: '100%' }}
-              transition={{ type: "spring", damping: 30, stiffness: 400 }}
-              className="fixed top-0 right-0 h-[calc(100vh-80px)] w-full max-w-2xl bg-gray-900 border-l border-gray-800 shadow-2xl p-6 z-50 mt-20"
-            >
-              <div className="flex flex-col h-full">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white line-clamp-2">
-                      {openedAlbum}
-                    </h2>
-                    <p className="text-gray-400 mt-1 text-sm md:text-base">
-                      {albums[openedAlbum]?.[0]?.artist || 'Unknown Artist'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setOpenedAlbum(null)}
-                    className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition-colors"
-                  >
-                    <FiX className="w-6 h-6" />
-                  </button>
+              {/* Tracks */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 48px", gap: 8, padding: "6px 12px", borderBottom: "1px solid var(--border)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--text-muted)", marginBottom: 4 }}>
+                  <span>#</span><span>Title</span><span style={{ textAlign: "center" }}><Clock size={10} /></span>
                 </div>
-
-                <div className="flex items-center gap-4 mb-6">
-                  <button
-                    onClick={() => playAlbum(openedAlbum)}
-                    className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm md:text-base"
-                  >
-                    <FiPlay className="text-lg" />
-                    Play Album
-                  </button>
-                </div>
-
-                <div className="border-t border-gray-800 pt-4 flex-1 overflow-hidden flex flex-col">
-                  <div className="flex items-center text-gray-400 text-xs md:text-sm uppercase tracking-wider mb-2 px-2">
-                    <div className="w-8"><FiMusic className="opacity-0" /></div>
-                    <div className="flex-1">Title</div>
-                    <div className="w-12 text-center"><FiClock /></div>
-                  </div>
-                  <div className="overflow-y-auto flex-1 pr-2 -mr-2">
-                    {albums[openedAlbum]?.map((track, index) => (
-                      <motion.div
-                        key={track.id}
-                        whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
-                        whileTap={{ scale: 0.98 }}
-                        className="flex items-center p-2 rounded-lg cursor-pointer transition-colors"
-                        onClick={() => playSong(track.id)}
-                      >
-                        <div className="w-8 text-center text-gray-400 text-sm md:text-base">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm md:text-base font-medium text-white truncate">
-                            {track.title}
-                          </p>
-                          <p className="text-xs md:text-sm text-gray-400 truncate">
-                            {track.artist}
-                          </p>
-                        </div>
-                        <div className="text-xs md:text-sm text-gray-400 w-12 text-center">
-                          {formatDuration(track.duration)}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                {albums[openedAlbum]?.map((raw, i) => {
+                  const t = songDefaults(raw);
+                  return (
+                    <motion.div key={t.id} whileHover={{ backgroundColor: "var(--bg-card)" }} onClick={() => playSong(t.id)}
+                      style={{ display: "grid", gridTemplateColumns: "24px 1fr 48px", gap: 8, padding: "9px 12px", borderRadius: 8, cursor: "pointer", alignItems: "center", transition: "background .12s" }}>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", fontWeight: 600 }}>{i + 1}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</p>
+                        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>{t.artist_name}</p>
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{fmtDuration(t.duration_seconds)}</span>
+                    </motion.div>
+                  );
+                })}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
-
-      {!loading && Object.keys(albums).length === 0 && (
-        <div className="text-center py-20">
-          <div className="text-6xl mb-6">🎵</div>
-          <h3 className="text-xl md:text-2xl font-medium text-gray-300 mb-3">
-            Your library is empty
-          </h3>
-          <p className="text-gray-500 max-w-md mx-auto text-sm md:text-base">
-            Start by uploading your music collection or connect your streaming service
-          </p>
-          <button className="mt-6 bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded-full transition-colors text-sm md:text-base">
-            Add Music
-          </button>
-        </div>
-      )}
     </div>
   );
-};
-
-export default Playlist;
+}

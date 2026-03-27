@@ -1,74 +1,173 @@
-// Sidebar.jsx
-import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
-import Logo from "../../assets/Muves.png";
+import { Link, useLocation } from "react-router-dom";
+import { Compass, Disc3, BookOpen, Mic2, Radio, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { useUser } from "../../context/UserContext";
+import { usePlayer } from "../../context/PlayerContext";
+import ApiService from "../../services/ApiService";
+import { API_CONFIG } from "../../config";
+import { motion } from "framer-motion";
 
-function Sidebar({ onNavigate }) { // Receive onNavigate prop
-  const sidebarRef = useRef(null);
+const MENU = [
+  { name: "Explore",    path: "/",         icon: Compass  },
+  { name: "Genres",     path: "/genres",   icon: Disc3    },
+  { name: "Albums",     path: "/albums",   icon: BookOpen },
+  { name: "Artists",    path: "/artists",  icon: Mic2     },
+  { name: "Radio",      path: "/radio",    icon: Radio    },
+];
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-        onNavigate(); // Call onNavigate to close the sidebar
-      }
-    };
+const LIBRARY = [
+  { name: "Recent",     path: "/library?tab=history",  icon: Clock    },
+  { name: "Albums",     path: "/library?tab=albums",   icon: Library  },
+  { name: "Favourites", path: "/favorites",            icon: Heart    },
+  { name: "Local Files",path: "/local?tab=local",      icon: HardDrive},
+];
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onNavigate]); // Include onNavigate in dependencies
+const PLAYLISTS = [
+  { name: "Design Flow",    path: "/library", icon: ListMusic  },
+  { name: "Best of 2024",   path: "/library", icon: ListMusic  },
+  { name: "Late Night",     path: "/library", icon: ListMusic  },
+];
+
+function SectionLabel({ children, collapsed }) {
+  if (collapsed) return <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "30px 16px 16px" }} />;
+  return (
+    <p style={{ 
+      fontSize: 10, fontWeight: 900, textTransform: "uppercase", 
+      letterSpacing: ".2em", color: "rgba(255,255,255,0.4)", 
+      padding: "0 24px", marginBottom: 16, marginTop: 40 
+    }}>
+      {children}
+    </p>
+  );
+}
+
+function NavItem({ item, onNavigate, collapsed }) {
+  const location = useLocation();
+  const Icon = item.icon;
+  const isActive = location.pathname + location.search === item.path || (item.path === "/" && location.pathname === "/");
 
   return (
-    <div
-      ref={sidebarRef}
-      className="fixed md:relative left-0 top-0 h-screen bg-gray-900 w-64 transform transition-transform duration-300 z-50 border-r border-gray-800"
-    >
-      <div className="p-6 h-full flex flex-col">
-        <div className="mb-8">
-          <Link to="/" className="flex items-center gap-3" onClick={onNavigate}>
-            <img src={Logo} alt="Logo" className="w-10 h-10" />
-            <h1 className="text-2xl font-bold text-white">Muve𝄞</h1>
-          </Link>
-        </div>
+    <Link to={item.path} onClick={onNavigate} style={{ textDecoration: "none", display: "block", padding: collapsed ? "0 8px" : "0 12px" }}>
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: collapsed ? 0 : 14,
+          padding: "12px", 
+          background: isActive ? "#CCFF00" : "transparent",
+          color: isActive ? "#000" : "#fff",
+          fontWeight: 900, fontSize: 13, 
+          textTransform: "uppercase",
+          transition: "all .1s ease",
+          border: isActive ? "2px solid #000" : "2px solid transparent"
+        }}
+        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "#CCFF00"; } }}
+        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "#fff"; } }}
+        title={collapsed ? item.name : ""}
+      >
+        <Icon size={18} style={{ flexShrink: 0 }} strokeWidth={isActive ? 3 : 2} />
+        {!collapsed && <span style={{ paddingTop: 1 }}>{item.name}</span>}
+      </div>
+    </Link>
+  );
+}
 
-        <nav className="flex-1 space-y-6">
-          <div className="space-y-2">
-            <Link
-              to="/"
-              className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded-lg"
-              onClick={onNavigate}
-            >
-              Home
-            </Link>
-            <Link
-              to="/library"
-              className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded-lg"
-              onClick={onNavigate}
-            >
-              Your Library
-            </Link>
-          </div>
+export default function Sidebar({ onNavigate, collapsed }) {
+  const { user } = useUser();
+  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const [recent, setRecent] = useState([]);
 
-          <div className="border-t border-gray-800 pt-6">
-            <h2 className="px-4 mb-4 text-sm font-semibold text-gray-400 uppercase tracking-wider">
-              D I S C O V E R Y
-            </h2>
-            <div className="space-y-2">
-              {["Artists", "Album", "Your Playlist", "Radio", "Video"].map((item) => (
-                <Link
-                  key={item}
-                  to={`/${item.toLowerCase()}`}
-                  className="block px-4 py-2 text-gray-300 hover:bg-gray-800 rounded-lg"
-                  onClick={onNavigate}
-                >
-                  {item}
-                </Link>
-              ))}
-            </div>
-          </div>
+  const playSong = async (id) => {
+    if (!user?.email) return;
+    try {
+      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email: user.email, songIds: [id], album: false }, { withCredentials: true });
+      setCurrentSongId(id);
+      setQueueUpdated(prev => !prev);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!collapsed && user?.email) {
+       axios.get(`${API_CONFIG.AUTH_URL}/play-history`, { withCredentials: true })
+         .then(res => setRecent(res.data.slice(0, 5)))
+         .catch(() => {});
+    }
+  }, [collapsed, user?.email]);
+
+  return (
+    <div style={{ 
+      display: "flex", flexDirection: "column", height: "100%", 
+      background: "#000", color: "#fff",
+      borderRight: "3px solid #000",
+      width: "100%", transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+    }}>
+      {/* ── LOGO ── */}
+      <div style={{ padding: collapsed ? "30px 0" : "40px 24px 30px", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+        {!collapsed && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ width: 8, height: 32, background: "#CCFF00", border: "2px solid #000" }} />}
+        <span style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: "-0.05em", textTransform: "uppercase" }}>
+          {collapsed ? "M" : "Muve"}<span style={{ color: "#CCFF00" }}>𝄞</span>
+        </span>
+      </div>
+
+      <div className="scrollbar-hide" style={{ flex: 1, overflowY: "auto", paddingBottom: 40 }}>
+        <SectionLabel collapsed={collapsed}>Discover</SectionLabel>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {MENU.map(item => <NavItem key={item.name} item={item} onNavigate={onNavigate} collapsed={collapsed} />)}
         </nav>
+
+        <SectionLabel collapsed={collapsed}>Your Library</SectionLabel>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {LIBRARY.map(item => <NavItem key={item.name} item={item} onNavigate={onNavigate} collapsed={collapsed} />)}
+        </nav>
+
+        {!collapsed && recent.length > 0 && (
+          <>
+            <SectionLabel collapsed={collapsed}>Recently Played</SectionLabel>
+            <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+               {recent.map(s => (
+                 <div key={s.id + s.played_at} 
+                   onClick={() => playSong(s.id)}
+                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", cursor: "pointer", transition: "0.2s" }} 
+                   className="sidebar-recent-item" 
+                   onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} 
+                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <img src={s.cover_url || "/default-album.jpg"} style={{ width: 32, height: 32, border: "1px solid rgba(255,255,255,0.1)" }} alt="" />
+                    <div style={{ overflow: "hidden" }}>
+                      <p style={{ margin: 0, fontSize: 11, fontWeight: 900, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</p>
+                      <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{s.artist_name}</p>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </>
+        )}
+
+        <SectionLabel collapsed={collapsed}>Playlists</SectionLabel>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {PLAYLISTS.map(item => <NavItem key={item.name} item={item} onNavigate={onNavigate} collapsed={collapsed} />)}
+          {!collapsed && (
+            <button style={{ 
+              marginTop: 10, margin: "10px 12px 0", padding: "12px",
+              background: "transparent", border: "2px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.5)", fontWeight: 900, textTransform: "uppercase", 
+              fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+              justifyContent: "center", transition: "0.2s"
+            }} onMouseEnter={e => { e.currentTarget.style.borderColor = "#CCFF00"; e.currentTarget.style.color = "#CCFF00"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}>
+              <PlusCircle size={12} /> New Playlist
+            </button>
+          )}
+        </nav>
+      </div>
+
+      {/* ── PREMIUM UPSELL ── */}
+      <div style={{ padding: collapsed ? "12px" : "24px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+         <div style={{ 
+           padding: collapsed ? "10px" : "20px", background: "#CCFF00", color: "#000", 
+           textAlign: "center", fontWeight: 900, textTransform: "uppercase", fontSize: collapsed ? 14 : 11,
+           cursor: "pointer", border: "2px solid #000"
+         }}>
+           {collapsed ? "PR" : "Try Premium ↗"}
+         </div>
       </div>
     </div>
   );
 }
-
-export default Sidebar;
