@@ -12,7 +12,13 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await axios.get(`${API_CONFIG.AUTH_URL}/check-auth`, { withCredentials: true });
+        const token = localStorage.getItem("token");
+        const headers = { withCredentials: true };
+        if (token) {
+          headers.headers = { Authorization: `Bearer ${token}` };
+        }
+        
+        const response = await axios.get(`${API_CONFIG.AUTH_URL}/check-auth`, headers);
         setUser(response.data.user);
       } catch (error) {
         setUser(null);
