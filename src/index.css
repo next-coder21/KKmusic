@@ -89,7 +89,7 @@ h1,h2,h3,h4,h5,h6 {
       "sidebar topbar"
       "sidebar main";
   }
-  .player-wrapper { display: none !important; }
+  .player-wrapper { display: flex; }
   .bottom-bar-wrapper { display: block; position: fixed; bottom: 56px; left: 0; right: 0; z-index: 50; }
 }
 

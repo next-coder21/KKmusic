@@ -31,7 +31,7 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
   
   // Layout States
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [playerDockedBottom, setPlayerDockedBottom] = useState(false);
+  const [playerDockedBottom, setPlayerDockedBottom] = useState(true);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth > 1024);
 
   useEffect(() => {
@@ -58,6 +58,9 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
   const gridStyle = isDesktop ? {
     gridTemplateColumns: `${sidebarCollapsed ? "64px" : "240px"} 1fr ${playerDockedBottom ? "0px" : "340px"}`
   } : {};
+
+  // Mobile Player Overlay Logic
+  const showMobilePlayer = !isDesktop && !playerDockedBottom;
 
   return (
     <div style={{ height:"100vh",overflow:"hidden",background:"var(--bg-root)" }}>
@@ -98,13 +101,19 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
           </div>
         </main>
 
-        {/* ── DESKTOP PANEL PLAYER ── */}
-        <div className="player-wrapper" style={{ gridArea: "player", borderLeft: "3px solid #000", background: "#000", display: (playerDockedBottom || !isDesktop) ? 'none' : 'flex' }}>
-            {isDesktop && !playerDockedBottom && (
-              <ErrorBoundary label="PlayerPanel">
-                <Player forceBar={false} onToggleDock={() => setPlayerDockedBottom(true)} />
-              </ErrorBoundary>
-            )}
+        {/* ── PLAYER PANEL (DESKTOP OR MOBILE OVERLAY) ── */}
+        <div className="player-wrapper" style={
+          !isDesktop && !playerDockedBottom 
+            ? { position: "fixed", inset: 0, zIndex: 2000, background: "#000", display: "flex", flexDirection: "column" }
+            : { gridArea: "player", borderLeft: "3px solid #000", background: "#000", display: (playerDockedBottom || !isDesktop) ? 'none' : 'flex' }
+        }>
+            <ErrorBoundary label="PlayerPanel">
+              <Player 
+                forceBar={false} 
+                onToggleDock={() => setPlayerDockedBottom(true)} 
+                isMobileView={!isDesktop}
+              />
+            </ErrorBoundary>
         </div>
       </div>
 
@@ -122,13 +131,15 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
       )}
 
       {/* ── GLOBAL BOTTOM BAR PLAYER ── */}
-      <div className={`bottom-bar-wrapper ${(playerDockedBottom || !isDesktop) ? 'desk-dock' : ''}`}>
-           {(!isDesktop || playerDockedBottom) && (
-             <ErrorBoundary label="PlayerBar">
-                <Player forceBar={true} onToggleDock={() => setPlayerDockedBottom(false)} />
-             </ErrorBoundary>
-           )}
-      </div>
+      {!showMobilePlayer && (
+        <div className={`bottom-bar-wrapper ${(playerDockedBottom || !isDesktop) ? 'desk-dock' : ''}`}>
+             {(!isDesktop || playerDockedBottom) && (
+               <ErrorBoundary label="PlayerBar">
+                  <Player forceBar={true} onToggleDock={() => setPlayerDockedBottom(false)} />
+               </ErrorBoundary>
+             )}
+        </div>
+      )}
 
       <MobileNav />
     </div>

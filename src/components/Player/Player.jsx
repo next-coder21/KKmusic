@@ -40,7 +40,7 @@ function parseLRC(raw) {
 }
 
 /* ── LYRICS PANEL ───────────────────────────────────────── */
-function LyricsPanel({ songId, currentTime }) {
+function LyricsPanel({ songId, currentTime, onSeek }) {
   const [lyrics, setLyrics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -69,30 +69,49 @@ function LyricsPanel({ songId, currentTime }) {
   useEffect(() => {
     if (activeIdx < 0) return;
     const el = lineRefs.current[activeIdx];
-    if (el && containerRef.current) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (el && containerRef.current) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }, [activeIdx]);
+
+  // Initial scroll on mount
+  useEffect(() => {
+    if (activeIdx >= 0) {
+      setTimeout(() => {
+        const el = lineRefs.current[activeIdx];
+        if (el && containerRef.current) {
+          el.scrollIntoView({ behavior: "auto", block: "center" });
+        }
+      }, 100);
+    }
+  }, [lyrics]);
 
   if (loading) return <div style={{ padding: 40, color: "#CCFF00", fontWeight: 900 }}>LOADING...</div>;
 
   return (
-    <div ref={containerRef} style={{ flex: 1, overflowY: "auto", padding: "24px 30px" }} className="scrollbar-hide">
+    <div ref={containerRef} style={{ flex: 1, overflowY: "auto", padding: "0 30px" }} className="scrollbar-hide">
+      <div style={{ height: "50vh" }} />
       {lyrics ? lyrics.lines.map((line, i) => (
-        <p key={i} ref={el => lineRefs.current[i] = el} style={{ 
-          fontSize: i === activeIdx ? "1.6rem" : "1.1rem", 
-          fontWeight: 900, textTransform: "uppercase", 
-          lineHeight: 1.1, marginBottom: 14, transition: "all 0.2s",
-          color: i === activeIdx ? "#CCFF00" : "rgba(255,255,255,0.2)"
-        }}>
+        <p key={i} ref={el => lineRefs.current[i] = el} 
+          onClick={() => line.time !== undefined && onSeek && onSeek(line.time)}
+          style={{ 
+            fontSize: i === activeIdx ? "2.2rem" : "1.1rem", 
+            fontWeight: 900, textTransform: "uppercase", 
+            lineHeight: 1.1, marginBottom: 20, transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+            color: i === activeIdx ? "#CCFF00" : "rgba(255,255,255,0.2)",
+            textShadow: i === activeIdx ? "0 0 20px rgba(204,255,0,0.3)" : "none",
+            cursor: "pointer"
+          }}>
           {lyrics.type === "lrc" ? line.text : line}
         </p>
-      )) : <p style={{ color: "rgba(255,255,255,0.2)", fontWeight: 900, textTransform: "uppercase" }}>No lyrics found.</p>}
-      <div style={{ height: 100 }} />
+      )) : <p style={{ color: "rgba(255,255,255,0.2)", fontWeight: 900, textTransform: "uppercase", textAlign: "center", paddingTop: 40 }}>No lyrics found.</p>}
+      <div style={{ height: "50vh" }} />
     </div>
   );
 }
 
 /* ── MAIN PLAYER ───────────────────────────────────────── */
-export default function Player({ forceBar, onToggleDock }) {
+export default function Player({ forceBar, onToggleDock, isMobileView }) {
   const [song, setSong] = useState(null);
   const [localProgress, setLocalProgress] = useState(0);
   const [localTime, setLocalTime] = useState(0);
@@ -141,6 +160,8 @@ export default function Player({ forceBar, onToggleDock }) {
     }
     return () => clearTimeout(timeout);
   }, [isPlaying, song?.id]);
+
+  const lastSavedTime = useRef(-1);
 
   useEffect(() => {
     const load = async () => {
@@ -194,12 +215,17 @@ export default function Player({ forceBar, onToggleDock }) {
     const t = audioRef.current.currentTime;
     setLocalTime(t);
     if (duration > 0) setLocalProgress((t / duration) * 100);
-    if (Math.floor(t) % 5 === 0) setGlobalTime(t);
+    
+    // Throttled sync to context every 5 seconds to reduce re-renders
+    const roundedT = Math.floor(t);
+    if (roundedT % 5 === 0 && roundedT !== lastSavedTime.current) {
+      setGlobalTime(t);
+      lastSavedTime.current = roundedT;
+    }
 
     // Update buffered progress bar
     const audio = audioRef.current;
     if (audio.buffered.length > 0 && duration > 0) {
-      // Find the buffered range that contains currentTime
       for (let i = 0; i < audio.buffered.length; i++) {
         if (audio.buffered.start(i) <= t && t <= audio.buffered.end(i)) {
           setBufferedProgress((audio.buffered.end(i) / duration) * 100);
@@ -211,13 +237,65 @@ export default function Player({ forceBar, onToggleDock }) {
 
   const skip = (dir) => {
     if (!queue.length) return;
-    setCurrentIndex((currentIndex + dir + queue.length) % queue.length);
+    const nextIdx = (currentIndex + dir + queue.length) % queue.length;
+    setCurrentIndex(nextIdx);
+    setGlobalTime(0); // Reset time for next song
+  };
+
+  const handleSongEnd = async () => {
+    if (!song) return;
+    
+    const finishedSongId = song.id;
+    const isLastInQueue = queue.length === 1;
+
+    // 1. Remove from backend queue
+    if (user?.email) {
+      try {
+        await axios.post(`${ApiService.getBaseUrl()}/queue/remove`, { 
+          email: user.email, 
+          songId: finishedSongId 
+        });
+      } catch (err) {
+        console.error("Failed to remove song from server queue", err);
+      }
+    }
+
+    // 2. Update Local State
+    const newQueue = queue.filter(s => s.id !== finishedSongId);
+    setQueue(newQueue);
+
+    if (isLastInQueue) {
+      // No more songs left
+      setIsPlaying(false);
+      setCurrentIndex(0);
+      setGlobalTime(0);
+      if (audioRef.current) audioRef.current.pause();
+    } else {
+      // There are songs left. Because we removed current, the next song 
+      // shifted into the currentIndex. If we were playing the absolute last 
+      // item in a long queue, reset to 0.
+      let nextIdx = currentIndex;
+      if (nextIdx >= newQueue.length) nextIdx = 0;
+      
+      setCurrentIndex(nextIdx);
+      setGlobalTime(0);
+      // Native audio source update happens in useEffect [currentIndex, queue]
+    }
+  };
+
+  const seekToTime = (t) => {
+    if (audioRef.current && duration > 0) {
+      audioRef.current.currentTime = t;
+      setLocalTime(t);
+      setLocalProgress((t / duration) * 100);
+      setGlobalTime(t);
+    }
   };
 
   const seek = (e) => {
     const p = parseFloat(e.target.value);
     const t = (p/100) * duration;
-    if (audioRef.current) { audioRef.current.currentTime = t; setLocalTime(t); setLocalProgress(p); setGlobalTime(t); }
+    seekToTime(t);
   };
 
   const handleShareClick = async () => {
@@ -286,7 +364,7 @@ export default function Player({ forceBar, onToggleDock }) {
         ref={audioRef}
         preload="metadata"
         onTimeUpdate={onTimeUpdate}
-        onEnded={() => skip(1)}
+        onEnded={handleSongEnd}
         onCanPlay={() => {
           setIsBuffering(false);
           if (isPlaying) audioRef.current?.play().catch(() => {});
@@ -333,7 +411,13 @@ export default function Player({ forceBar, onToggleDock }) {
               </div>
               <div style={{ display: "flex", gap: 14 }}>
                  <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer" }} title="Share Lyrics"><Share2 size={16} strokeWidth={3} /></button>
-                 <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer" }} title="Dock to Bottom"><Minimize2 size={16} strokeWidth={3} /></button>
+                 {isMobileView ? (
+                   <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer" }} title="Collapse">
+                      <ChevronDown size={24} strokeWidth={3} />
+                   </button>
+                 ) : (
+                   <button onClick={onToggleDock} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer" }} title="Dock to Bottom"><Minimize2 size={16} strokeWidth={3} /></button>
+                 )}
               </div>
            </div>
            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }} className="scrollbar-hide">
@@ -366,7 +450,11 @@ export default function Player({ forceBar, onToggleDock }) {
               )}
               {panelMode === "lyrics" && (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
-                      <LyricsPanel songId={song?.id} currentTime={localTime} />
+                      <LyricsPanel 
+                        songId={song?.id} 
+                        currentTime={localTime} 
+                        onSeek={seekToTime}
+                      />
                       <TransportControls mode="lyrics" />
                   </div>
               )}
@@ -379,7 +467,10 @@ export default function Player({ forceBar, onToggleDock }) {
           {song ? (
             <>
               {/* Info Area */}
-              <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 20, flex: "0 1 auto", overflow: "hidden", maxWidth: isMobile ? "35%" : "30%" }}>
+              <div 
+                onClick={() => isMobile && onToggleDock()}
+                style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 20, flex: "0 1 auto", overflow: "hidden", maxWidth: isMobile ? "35%" : "30%", cursor: isMobile ? "pointer" : "default" }}
+              >
                 <img src={song.cover_url} style={{ width: isMobile ? 40 : 56, height: isMobile ? 40 : 56, border: "2px solid #CCFF00", flexShrink: 0 }} alt="" />
                 {!isMobile && (
                   <div style={{ overflow: "hidden" }}>

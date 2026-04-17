@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from "react-router-dom";
 import {
   FiGrid, FiMusic, FiUsers, FiMic, FiDisc, FiAlertTriangle,
-  FiLogOut, FiLayers, FiBell, FiSettings, FiChevronRight, FiRadio
+  FiLogOut, FiLayers, FiBell, FiSettings, FiChevronRight, FiRadio, FiFileText
 } from "react-icons/fi";
 import axios from "axios";
 import ApiService from "../../services/ApiService";
@@ -16,6 +16,7 @@ import AdminAlbums from "./AdminAlbums";
 import AdminUsers from "./AdminUsers";
 import AdminReports from "./AdminReports";
 import AdminAds from "./AdminAds";
+import AdminLyricsCreator from "./AdminLyricsCreator";
 
 const adminApi = axios.create({
   baseURL: API_CONFIG.ADMIN_URL,
@@ -23,14 +24,15 @@ const adminApi = axios.create({
 });
 
 const NAV_ITEMS = [
-  { name: "Overview",      icon: FiGrid,         path: "/admin",               exact: true },
-  { name: "Alerts",        icon: FiRadio,        path: "/admin/announcements", badge: true },
-  { name: "Songs",         icon: FiMusic,        path: "/admin/songs" },
-  { name: "Artists",       icon: FiMic,          path: "/admin/artists" },
-  { name: "Albums",        icon: FiDisc,         path: "/admin/albums" },
-  { name: "Ads",           icon: FiLayers,       path: "/admin/ads" },
-  { name: "Users",         icon: FiUsers,        path: "/admin/users" },
-  { name: "Reports",       icon: FiAlertTriangle, path: "/admin/reports", alert: true },
+  { name: "Overview",        icon: FiGrid,          path: "/admin",                  exact: true },
+  { name: "Alerts",          icon: FiRadio,         path: "/admin/announcements",    badge: true },
+  { name: "Songs",           icon: FiMusic,         path: "/admin/songs" },
+  { name: "Lyrics Creator",  icon: FiFileText,      path: "/admin/lyrics-creator" },
+  { name: "Artists",         icon: FiMic,           path: "/admin/artists" },
+  { name: "Albums",          icon: FiDisc,          path: "/admin/albums" },
+  { name: "Ads",             icon: FiLayers,        path: "/admin/ads" },
+  { name: "Users",           icon: FiUsers,         path: "/admin/users" },
+  { name: "Reports",         icon: FiAlertTriangle, path: "/admin/reports", alert: true },
 ];
 
 const S = {
@@ -238,7 +240,8 @@ const AdminApp = () => {
           <Routes>
             <Route path="/"              element={<AdminDashboard     api={adminApi} />} />
             <Route path="/announcements" element={<AdminAnnouncements api={adminApi} />} />
-            <Route path="/songs"         element={<AdminSongs         api={adminApi} />} />
+            <Route path="/songs"           element={<AdminSongs         api={adminApi} />} />
+            <Route path="/lyrics-creator"  element={<AdminLyricsCreator api={adminApi} />} />
             <Route path="/artists"       element={<AdminArtists       api={adminApi} />} />
             <Route path="/albums"        element={<AdminAlbums        api={adminApi} />} />
             <Route path="/users"         element={<AdminUsers         api={adminApi} />} />
