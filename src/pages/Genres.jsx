@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Disc3, Music2, Play, LayoutGrid, Heart, TrendingUp } from "lucide-react";
 import axios from "axios";
+import http from "../services/http";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import { usePlayer } from "../context/PlayerContext";
@@ -40,7 +41,7 @@ export default function Genres() {
           setGenres(g.data || []);
           
           if (user?.email) {
-             const t = await axios.get(`${AUTH}/top-genres`, { withCredentials: true });
+             const t = await http.get("/auth/top-genres");
              setTopGenres((t.data || []).slice(0, 4));
           }
        } catch {}
@@ -57,11 +58,7 @@ export default function Genres() {
       const res = await axios.get(`${BASE}/music/songs`);
       const genreSongs = res.data.filter(s => s.genre === genreName);
       if (!genreSongs.length) return;
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, {
-        email: user.email,
-        songIds: genreSongs.map(s => s.id),
-        album: true,
-      });
+      await http.post("/auth/queue/add", { songIds: genreSongs.map(s => s.id), album: true });
       setCurrentSongId(genreSongs[0].id);
       setUserStarted(true);
       setIsPlaying(true);

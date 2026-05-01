@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
+import http from "../../services/http";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat,
   Volume2, VolumeX, Heart, ListMusic, Loader2, X,
@@ -147,6 +148,33 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
   const recordedPlay  = useRef(null);
   const lastSavedTime = useRef(-1);
 
+  // ── Favourite state ────────────────────────────────────
+  const [isFav, setIsFav] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
+
+  useEffect(() => {
+    if (!song?.id || !user) { setIsFav(false); return; }
+    let cancelled = false;
+    http.get("/auth/favourites")
+      .then(r => { if (!cancelled) setIsFav((r.data.favourites || []).includes(song.id)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [song?.id, user]);
+
+  const toggleFav = async () => {
+    if (!song?.id || !user || favLoading) return;
+    setFavLoading(true);
+    const next = !isFav;
+    setIsFav(next);
+    try {
+      await http.post("/auth/favourites/add", { songIds: [song.id] });
+    } catch {
+      setIsFav(!next); // revert on error
+    } finally {
+      setFavLoading(false);
+    }
+  };
+
   const fmt = (s) => {
     const v = Number.isFinite(s) ? Math.floor(s) : 0;
     return `${Math.floor(v/60)}:${(v%60).toString().padStart(2,"0")}`;
@@ -171,7 +199,7 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
     const load = async () => {
       if (!user?.email) return;
       try {
-        const res = await axios.get(`${ApiService.getBaseUrl()}/queue/${user.email}`);
+        const res = await http.get("/auth/queue");
         const ids = res.data.queue || [];
         const detailed = await Promise.all(ids.map(async id => {
           const r = await axios.get(`${ApiService.getBaseUrl()}/music/songs/${id}`);
@@ -250,7 +278,7 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
 
     if (user?.email) {
       try {
-        await axios.post(`${ApiService.getBaseUrl()}/queue/remove`, { email: user.email, songId: finishedSongId });
+        await http.post("/auth/queue/remove", { songId: finishedSongId });
       } catch {}
     }
 
@@ -338,7 +366,7 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
       const isLast     = queue.length === 1;
 
       if (user?.email) {
-        try { await axios.post(`${ApiService.getBaseUrl()}/queue/remove`, { email: user.email, songId: skippedId }); } catch {}
+        try { await http.post("/auth/queue/remove", { songId: skippedId }); } catch {}
       }
 
       const newQueue = queue.filter(s => s.id !== skippedId);
@@ -488,7 +516,17 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
                     <div style={{ width: "100%", aspectRatio: "1", border: "3px solid #CCFF00", marginBottom: 30, overflow: "hidden", flexShrink: 0, background: "#111" }}>
                       <img src={song.cover_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
                     </div>
-                    <h2 style={{ fontSize: "1.8rem", fontWeight: 900, textTransform: "uppercase", lineHeight: 0.95, letterSpacing: "-0.04em", margin: "0 0 10px", overflow: "hidden", whiteSpace: "nowrap" }}>{song.title}</h2>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                      <h2 style={{ fontSize: "1.8rem", fontWeight: 900, textTransform: "uppercase", lineHeight: 0.95, letterSpacing: "-0.04em", margin: 0, overflow: "hidden", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{song.title}</h2>
+                      <button
+                        onClick={toggleFav}
+                        disabled={favLoading}
+                        title={isFav ? "Remove from favourites" : "Add to favourites"}
+                        style={{ background: "transparent", border: "none", cursor: favLoading ? "default" : "pointer", padding: "4px 0", flexShrink: 0, color: isFav ? "#CCFF00" : "rgba(255,255,255,0.35)", transition: "color 0.2s, transform 0.15s", transform: favLoading ? "scale(0.85)" : "scale(1)" }}
+                      >
+                        <Heart size={22} fill={isFav ? "currentColor" : "none"} strokeWidth={2.5} />
+                      </button>
+                    </div>
                     <p style={{ color: "#CCFF00", fontWeight: 900, textTransform: "uppercase", fontSize: 13, margin: "0 0 40px" }}>{song.artist_name}</p>
                     <TransportControls />
                   </>
@@ -564,6 +602,14 @@ export default function Player({ forceBar, onToggleDock, isMobileView }) {
 
               {/* Actions */}
               <div style={{ display: "flex", gap: isMobile ? 10 : 20, alignItems: "center", flexShrink: 0 }}>
+                <button
+                  onClick={toggleFav}
+                  disabled={favLoading}
+                  title={isFav ? "Remove from favourites" : "Add to favourites"}
+                  style={{ background: "transparent", border: "none", cursor: favLoading ? "default" : "pointer", padding: 4, color: isFav ? "#CCFF00" : "rgba(255,255,255,0.4)", transition: "color 0.2s, transform 0.15s", transform: favLoading ? "scale(0.85)" : "scale(1)" }}
+                >
+                  <Heart size={isMobile ? 16 : 18} fill={isFav ? "currentColor" : "none"} strokeWidth={2.5} />
+                </button>
                 <button onClick={handleShareClick} style={{ background: "transparent", border: "none", color: "#CCFF00", cursor: "pointer", padding: 4 }} title="Share">
                   <Share2 size={isMobile ? 16 : 18} strokeWidth={3} />
                 </button>

@@ -17,6 +17,7 @@ const AUTH_FLAG_KEY = "isAuthenticated";
 const http = axios.create({
   baseURL: API_CONFIG.BASE_URL,
   withCredentials: true,
+  timeout: 30000, // 30 s — prevents requests hanging on dead/slow backend
   headers: { "Content-Type": "application/json" },
 });
 

@@ -5,6 +5,7 @@ import { useUser }   from "../context/UserContext";
 import { usePlayer } from "../context/PlayerContext";
 import { Music, Heart, Clock, Plus, Share2, Trash2, Globe, Lock, Library as LibraryIcon } from "lucide-react";
 import axios from "axios";
+import http from "../services/http";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import toast from "react-hot-toast";
@@ -49,7 +50,7 @@ export default function Library() {
       try {
         if (tab === "playlists") {
           // Real API call — falls back gracefully if table doesn't exist
-          const r = await axios.get(`${BASE}/playlists`, { withCredentials:true })
+          const r = await http.get("/auth/playlists")
             .catch(() => ({ data:[] }));
           setPlaylists(r.data || []);
 
@@ -58,7 +59,7 @@ export default function Library() {
           setAlbums(r.data || []);
 
         } else if (tab === "favourites") {
-          const r = await axios.get(`${BASE}/favourites/${email}`);
+          const r = await http.get("/auth/favourites");
           const ids = r.data.favourites || [];
           const detailed = await Promise.all(ids.map(async id => {
             try { const s = await axios.get(`${BASE}/music/songs/${id}`); return songDefaults({id,...s.data}); }
@@ -68,7 +69,7 @@ export default function Library() {
 
         } else {
           // FIX: was /auth/play-history — BASE already = /auth, so this is /auth/play-history ✓
-          const r = await axios.get(`${BASE}/play-history`, { withCredentials:true })
+          const r = await http.get("/auth/play-history")
             .catch(() => ({ data:[] }));
           setHistory(r.data || []);
         }
@@ -84,9 +85,8 @@ export default function Library() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const r = await axios.post(`${BASE}/playlists`, { name:newName.trim() }, { withCredentials:true })
+      const r = await http.post("/auth/playlists", { name:newName.trim() })
         .catch(async () => {
-          // If playlists table not set up, add locally
           return { data: { id:Date.now().toString(), name:newName.trim(), isShared:false, songCount:0 } };
         });
       setPlaylists(prev => [r.data, ...prev]);
@@ -100,7 +100,7 @@ export default function Library() {
   const deletePlaylist = async (id) => {
     if (!window.confirm("Delete this playlist?")) return;
     try {
-      await axios.delete(`${BASE}/playlists/${id}`, { withCredentials:true }).catch(()=>{});
+      await http.delete(`/auth/playlists/${id}`).catch(()=>{});
       setPlaylists(prev => prev.filter(p => p.id !== id));
       toast.success("Playlist deleted");
     } catch { toast.error("Failed to delete"); }
@@ -109,7 +109,7 @@ export default function Library() {
   // Toggle share
   const toggleShare = async (id, currentState) => {
     try {
-      await axios.patch(`${BASE}/playlists/${id}`, { is_public:!currentState }, { withCredentials:true }).catch(()=>{});
+      await http.patch(`/auth/playlists/${id}`, { is_public:!currentState }).catch(()=>{});
       setPlaylists(prev => prev.map(p => p.id===id ? {...p, isShared:!p.isShared, is_public:!currentState} : p));
       toast.success(!currentState ? "Playlist is now public" : "Playlist is now private");
     } catch {}
@@ -118,7 +118,7 @@ export default function Library() {
   const playSong = async id => {
     if (!email) return;
     try {
-      await axios.post(`${BASE}/queue/add`, { email, songIds:[id], album:false });
+      await http.post("/auth/queue/add", { songIds:[id], album:false });
       setCurrentSongId(id); setQueueUpdated(p=>!p);
       setUserStarted(true);
       setIsPlaying(true);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useUser } from "../context/UserContext";
 import { usePlayer } from "../context/PlayerContext";
 import axios from "axios";
+import http from "../services/http";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import { Play, Heart, Clock, MoreHorizontal } from "lucide-react";
@@ -25,7 +26,7 @@ export default function Favorites() {
 
   const playSong = async (id) => {
     try {
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: [id] });
+      await http.post("/auth/queue/add", { songIds: [id] });
       setCurrentSongId(id); setQueueUpdated(prev => !prev);
       setUserStarted(true);
       setIsPlaying(true);

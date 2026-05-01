@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Disc, Search, Play, Plus } from "lucide-react";
 import axios from "axios";
+import http from "../services/http";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import { usePlayer } from "../context/PlayerContext";
@@ -48,11 +49,7 @@ export default function Albums() {
         return;
       }
 
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { 
-        email, 
-        songIds: albumSongs.map(s => s.id), 
-        album: true 
-      });
+      await http.post("/auth/queue/add", { songIds: albumSongs.map(s => s.id), album: true });
       
       setCurrentSongId(albumSongs[0].id);
       setUserStarted(true);

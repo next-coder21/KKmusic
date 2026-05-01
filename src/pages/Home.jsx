@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
+import http from "../services/http";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, TrendingUp, Music2, Headphones, Sparkles, Zap, Mic2, X } from "lucide-react";
@@ -97,7 +98,7 @@ export default function Home() {
       // Fetch play history for personalised Daily Discovery
       if (email) {
         try {
-          const h = await axios.get(`${API_CONFIG.AUTH_URL}/play-history`, { withCredentials: true });
+          const h = await http.get("/auth/play-history");
           if (alive) setHistory(h.data || []);
         } catch {}
       }
@@ -125,7 +126,7 @@ export default function Home() {
   const playSong = async (id) => {
     if (!email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: [id], album: false });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id);
       setUserStarted(true);
       setIsPlaying(true);

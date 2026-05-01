@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import http from "../services/http";
 import { motion } from "framer-motion";
 import { Search as SearchIcon, Clock, X, Play, Music } from "lucide-react";
 import { useUser } from "../context/UserContext";
@@ -82,7 +83,7 @@ export default function Search() {
   const playSong = async (id) => {
     if (!user?.email) return toast.error("Please login");
     try {
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: [id], album: false });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id);
       setUserStarted(true);
       setIsPlaying(true);
@@ -96,7 +97,7 @@ export default function Search() {
       const res = await axios.get(`${API_CONFIG.MUSIC_URL}/songs`);
       const songs = (res.data || []).filter(s => s.artist_id === artistId);
       if (!songs.length) return toast.error("No songs for this artist");
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: songs.map(s => s.id), album: true });
+      await http.post("/auth/queue/add", { songIds: songs.map(s => s.id), album: true });
       setCurrentSongId(songs[0].id);
       setUserStarted(true);
       setIsPlaying(true);
@@ -110,7 +111,7 @@ export default function Search() {
       const res = await axios.get(`${API_CONFIG.MUSIC_URL}/songs`);
       const songs = (res.data || []).filter(s => s.album_id === albumId);
       if (!songs.length) return toast.error("No songs in this album");
-      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: songs.map(s => s.id), album: true });
+      await http.post("/auth/queue/add", { songIds: songs.map(s => s.id), album: true });
       setCurrentSongId(songs[0].id);
       setUserStarted(true);
       setIsPlaying(true);

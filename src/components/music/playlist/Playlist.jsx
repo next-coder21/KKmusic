@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import http from "../../../services/http";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, X, Clock, Music } from "lucide-react";
 import { useUser } from "../../../context/UserContext";
@@ -36,7 +37,7 @@ export default function Playlist() {
   const playSong = async id => {
     if (!email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: [id], album: false });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id); setQueueUpdated(p => !p);
     } catch {}
   };
@@ -44,7 +45,7 @@ export default function Playlist() {
   const playAlbum = async album => {
     if (!email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: albums[album].map(s => s.id), album: true });
+      await http.post("/auth/queue/add", { songIds: albums[album].map(s => s.id), album: true });
       setCurrentSongId(albums[album][0].id); setQueueUpdated(p => !p);
     } catch {}
   };

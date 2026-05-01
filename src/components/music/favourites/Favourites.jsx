@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import http from "../../../services/http";
 import { motion } from "framer-motion";
 import { Play, Heart, Clock } from "lucide-react";
 import { useUser } from "../../../context/UserContext";
@@ -26,7 +27,7 @@ export default function Favourites() {
     const fetch_ = async () => {
       try {
         setLoading(true); setError("");
-        const res = await axios.get(`${API_CONFIG.AUTH_URL}/favourites/${email}`);
+        const res = await http.get("/auth/favourites");
         const ids = res.data.favourites || [];
         if (!ids.length) { setFavourites([]); return; }
         const detailed = await Promise.all(ids.map(async id => {
@@ -43,7 +44,7 @@ export default function Favourites() {
   const playSong = async id => {
     if (!email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: [id], album: false });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id); setQueueUpdated(p => !p);
     } catch {}
   };
@@ -51,7 +52,7 @@ export default function Favourites() {
   const removeFav = async (id, e) => {
     e.stopPropagation();
     try {
-      await axios.post(`${API_CONFIG.AUTH_URL}/favourites/remove`, { email, songIds: [id] });
+      await http.post("/auth/favourites/remove", { songIds: [id] });
       setLocalFavUpdated(p => !p); setGlobalFav(p => !p);
       toast.success("Removed");
     } catch { toast.error("Failed"); }

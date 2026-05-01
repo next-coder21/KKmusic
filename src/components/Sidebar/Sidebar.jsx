@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Compass, Disc3, BookOpen, Mic2, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
+import http from "../../services/http";
 import { useUser } from "../../context/UserContext";
 import { usePlayer } from "../../context/PlayerContext";
 import ApiService from "../../services/ApiService";
@@ -78,7 +79,7 @@ export default function Sidebar({ onNavigate, collapsed }) {
   const playSong = async (id) => {
     if (!user?.email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email: user.email, songIds: [id], album: false }, { withCredentials: true });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id);
       setQueueUpdated(prev => !prev);
     } catch {}
@@ -86,7 +87,7 @@ export default function Sidebar({ onNavigate, collapsed }) {
 
   useEffect(() => {
     if (!collapsed && user?.email) {
-       axios.get(`${API_CONFIG.AUTH_URL}/play-history`, { withCredentials: true })
+       http.get("/auth/play-history")
          .then(res => setRecent(res.data.slice(0, 5)))
          .catch(() => {});
     }

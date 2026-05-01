@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic2, Search, Play, Music2, TrendingUp, ChevronRight } from "lucide-react";
 import axios from "axios";
+import http from "../services/http";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import { usePlayer } from "../context/PlayerContext";
@@ -54,11 +55,7 @@ export default function Artists() {
       const allSongs = await axios.get(`${BASE}/music/songs`);
       const artistSongs = (allSongs.data || []).filter(s => s.artist_id === artistId);
       if (!artistSongs.length) return;
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, {
-        email,
-        songIds: artistSongs.map(s => s.id),
-        album: true,
-      });
+      await http.post("/auth/queue/add", { songIds: artistSongs.map(s => s.id), album: true });
       setCurrentSongId(artistSongs[0].id);
       setUserStarted(true);
       setIsPlaying(true);

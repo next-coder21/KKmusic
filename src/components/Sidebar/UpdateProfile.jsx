@@ -3,6 +3,7 @@ import { useUser } from "../../context/UserContext";
 import { usePlayer } from "../../context/PlayerContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import http from "../../services/http";
 import ApiService from "../../services/ApiService";
 import { API_CONFIG } from "../../config";
 import { FiCamera, FiMusic, FiClock, FiList, FiPlay, FiSave } from "react-icons/fi";
@@ -101,7 +102,7 @@ const UpdateProfile = () => {
   const playSong = async (id) => {
     if (!user?.email) return;
     try {
-      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email: user.email, songIds: [id], album: false });
+      await http.post("/auth/queue/add", { songIds: [id], album: false });
       setCurrentSongId(id); setQueueUpdated(prev => !prev);
     } catch {}
   };
