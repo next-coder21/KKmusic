@@ -45,55 +45,20 @@ const Field = ({ label, icon, ...props }) => {
   );
 };
 
-/* ─── OTP input ─────────────────────────────────────────── */
-const OtpField = ({ value, onChange }) => {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-      <label style={{
-        fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.18em",
-        textTransform: "uppercase", color: focused ? "#C8FF00" : "rgba(255,255,255,0.35)",
-        transition: "color 0.2s ease",
-      }}>
-        🔐 Verification Code
-      </label>
-      <input
-        type="text" maxLength="6" required
-        value={value} onChange={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: "100%", padding: "1rem",
-          textAlign: "center", letterSpacing: "0.55em",
-          fontSize: "1.8rem", fontWeight: 900, fontFamily: "monospace",
-          background: focused ? "rgba(200,255,0,0.04)" : "rgba(255,255,255,0.04)",
-          border: `1px solid ${focused ? "rgba(200,255,0,0.5)" : "rgba(255,255,255,0.1)"}`,
-          borderRadius: "10px",
-          color: "#C8FF00",
-          outline: "none",
-          transition: "all 0.25s ease",
-          boxShadow: focused ? "0 0 0 3px rgba(200,255,0,0.08)" : "none",
-        }}
-        placeholder="· · · · · ·"
-      />
-    </div>
-  );
-};
-
 /* ─── Content per form state ────────────────────────────── */
 const TITLES = {
-  login:  { h: "Sign in to\nyour vibes.",   sub: "Welcome back to the stream." },
-  signup: { h: "Join the\nmuvement.",        sub: "Create your Muve𝄞 account." },
-  verify: { h: "Check your\ninbox.",         sub: "Enter the code we sent you." },
-  forgot: { h: "Forgot\npassword?",          sub: "We'll send a recovery code." },
-  reset:  { h: "Set new\npassword.",         sub: "Choose something strong." },
+  login:            { h: "Sign in to\nyour vibes.",     sub: "Welcome back to the stream." },
+  signup:           { h: "Join the\nmuvement.",          sub: "Create your Muve𝄞 account." },
+  "set-security":   { h: "One last\nstep.",              sub: "Set a secret keyword to protect your account." },
+  "check-security": { h: "Verify\nyourself.",            sub: "Enter your secret keyword to continue." },
+  reset:            { h: "Set new\npassword.",           sub: "Choose something strong." },
 };
 const BTN = {
-  login: "Sign in ↗",
-  signup: "Create account ↗",
-  verify: "Verify email ↗",
-  forgot: "Send reset code ↗",
-  reset: "Update password ↗",
+  login:            "Sign in ↗",
+  signup:           "Continue ↗",
+  "set-security":   "Create account ↗",
+  "check-security": "Verify ↗",
+  reset:            "Update password ↗",
 };
 
 /* ─── Left panel decorative stat ───────────────────────── */
@@ -133,16 +98,16 @@ const Waveform = () => (
    MAIN AUTH COMPONENT
 ════════════════════════════════════════════════════════ */
 const Auth = () => {
-  const [formType, setFormType]           = useState("login");
-  const [email, setEmail]                 = useState("");
-  const [password, setPassword]           = useState("");
-  const [newPassword, setNewPassword]     = useState("");
-  const [name, setName]                   = useState("");
+  const [formType, setFormType]               = useState("login");
+  const [email, setEmail]                     = useState("");
+  const [password, setPassword]               = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [name, setName]                       = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [otp, setOtp]                     = useState("");
-  const [isLoading, setIsLoading]         = useState(false);
-  const { setUser }                       = useUser();
-  const navigate                          = useNavigate();
+  const [securityAnswer, setSecurityAnswer]   = useState("");
+  const [isLoading, setIsLoading]             = useState(false);
+  const { setUser }                           = useUser();
+  const navigate                              = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -153,19 +118,26 @@ const Auth = () => {
         case "login":
           response = await http.post("/auth/login", { email, password });
           break;
+
         case "signup":
+          // Just validate locally then move to security step — no API call yet
           if (password !== confirmPassword) throw new Error("Passwords do not match");
-          response = await http.post("/auth/register", { name, email, password });
+          setFormType("set-security");
+          setSecurityAnswer("");
+          setIsLoading(false);
+          return;
+
+        case "set-security":
+          response = await http.post("/auth/register", { name, email, password, securityAnswer });
           break;
-        case "forgot":
-          response = await http.post("/auth/forgot-password", { email });
+
+        case "check-security":
+          response = await http.post("/auth/verify-security", { email, securityAnswer });
           break;
-        case "verify":
-          response = await http.post("/auth/verify", { email, otp });
-          break;
+
         case "reset":
           if (newPassword !== confirmPassword) throw new Error("Passwords do not match");
-          response = await http.post("/auth/reset-password", { email, otp, newPassword });
+          response = await http.post("/auth/reset-password", { email, securityAnswer, newPassword });
           break;
       }
       handleFormSuccess(response.data);
@@ -182,10 +154,20 @@ const Auth = () => {
         toast.success("Welcome back!");
         navigate("/");
         break;
-      case "signup":  toast.success("Account created — verify your email."); setFormType("verify"); break;
-      case "verify":  toast.success("Email verified!");        setFormType("login");  break;
-      case "reset":   toast.success("Password updated.");      setFormType("login");  break;
-      case "forgot":  toast.success("Recovery code sent.");    setFormType("reset");  break;
+      case "set-security":
+        toast.success("Account created! Sign in to get started.");
+        setFormType("login");
+        setPassword(""); setConfirmPassword(""); setSecurityAnswer("");
+        break;
+      case "check-security":
+        toast.success("Keyword verified. Set your new password.");
+        setFormType("reset");
+        break;
+      case "reset":
+        toast.success("Password updated.");
+        setSecurityAnswer("");
+        setFormType("login");
+        break;
     }
   };
 
@@ -221,7 +203,6 @@ const Auth = () => {
         overflow: "hidden",
       }} className="auth-left-panel">
 
-        {/* Background gradient orbs */}
         <div style={{
           position: "absolute", top: "-80px", left: "-80px",
           width: 360, height: 360, borderRadius: "50%",
@@ -235,7 +216,6 @@ const Auth = () => {
           pointerEvents: "none",
         }} />
 
-        {/* Vertical lime accent strip */}
         <div style={{
           position: "absolute", right: 0, top: 0, bottom: 0, width: 48,
           background: "#C8FF00",
@@ -252,7 +232,6 @@ const Auth = () => {
           ))}
         </div>
 
-        {/* TOP: Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{
             width: 32, height: 32, borderRadius: 10,
@@ -266,7 +245,6 @@ const Auth = () => {
           </span>
         </div>
 
-        {/* CENTER: Headline + waveform */}
         <div style={{ paddingRight: "3rem" }}>
           <Waveform />
           <div style={{
@@ -296,7 +274,6 @@ const Auth = () => {
           </p>
         </div>
 
-        {/* BOTTOM: Stats row */}
         <div style={{
           display: "flex", gap: "2.5rem",
           paddingRight: "3rem",
@@ -320,18 +297,15 @@ const Auth = () => {
         position: "relative",
       }}>
 
-        {/* Subtle bg gradient */}
         <div style={{
           position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
           background: "radial-gradient(ellipse at 60% 10%, rgba(124,58,237,0.08) 0%, transparent 60%)",
         }} />
 
-        {/* Top bar */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           marginBottom: "2.5rem", position: "relative", zIndex: 1,
         }}>
-          {/* Mobile logo */}
           <div className="auth-mobile-logo" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <div style={{
               width: 28, height: 28, borderRadius: 8,
@@ -364,7 +338,6 @@ const Auth = () => {
           </a>
         </div>
 
-        {/* Form area */}
         <div style={{
           flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
           position: "relative", zIndex: 1,
@@ -378,7 +351,6 @@ const Auth = () => {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               >
-                {/* Glass card wrapper */}
                 <div style={{
                   background: "rgba(255,255,255,0.03)",
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -390,13 +362,12 @@ const Auth = () => {
 
                   {/* Header */}
                   <div style={{ marginBottom: "2rem" }}>
-                    {/* Form type indicator */}
                     <div style={{ display: "flex", gap: "0.35rem", marginBottom: "1.5rem" }}>
                       {["login", "signup"].map(type => (
                         <div key={type} style={{
-                          width: type === formType ? 24 : 6,
+                          width: (type === formType || (type === "signup" && ["set-security"].includes(formType))) ? 24 : 6,
                           height: 4, borderRadius: 2,
-                          background: type === formType ? "#C8FF00" : "rgba(255,255,255,0.12)",
+                          background: (type === formType || (type === "signup" && ["set-security"].includes(formType))) ? "#C8FF00" : "rgba(255,255,255,0.12)",
                           transition: "all 0.3s ease",
                         }} />
                       ))}
@@ -429,7 +400,7 @@ const Auth = () => {
                         value={name} onChange={e => setName(e.target.value)} required />
                     )}
 
-                    {(formType === "login" || formType === "signup" || formType === "forgot") && (
+                    {(formType === "login" || formType === "signup" || formType === "check-security") && (
                       <Field label="Email" icon="✉" type="email" placeholder="you@example.com"
                         value={email} onChange={e => setEmail(e.target.value)} required />
                     )}
@@ -444,8 +415,29 @@ const Auth = () => {
                         value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
                     )}
 
-                    {(formType === "verify" || formType === "reset") && (
-                      <OtpField value={otp} onChange={e => setOtp(e.target.value)} />
+                    {(formType === "set-security" || formType === "check-security") && (
+                      <div>
+                        <Field
+                          label="Secret Keyword"
+                          icon="🛡️"
+                          type="text"
+                          placeholder="e.g. sunshine, guitar, 42..."
+                          value={securityAnswer}
+                          onChange={e => setSecurityAnswer(e.target.value)}
+                          required
+                        />
+                        {formType === "set-security" && (
+                          <p style={{
+                            marginTop: "0.5rem",
+                            fontSize: "0.72rem",
+                            color: "rgba(255,255,255,0.28)",
+                            fontWeight: 600,
+                            lineHeight: 1.5,
+                          }}>
+                            Remember this keyword — you'll need it to reset your password.
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {formType === "reset" && (
@@ -509,17 +501,17 @@ const Auth = () => {
                           <button type="button" onClick={() => setFormType("signup")} style={linkStyle}>
                             No account? Create one ↗
                           </button>
-                          <button type="button" onClick={() => setFormType("forgot")} style={{ ...linkStyle, color: "rgba(255,255,255,0.22)" }}>
+                          <button type="button" onClick={() => { setFormType("check-security"); setSecurityAnswer(""); }} style={{ ...linkStyle, color: "rgba(255,255,255,0.22)" }}>
                             Forgot password?
                           </button>
                         </>
                       )}
-                      {formType === "signup" && (
+                      {(formType === "signup" || formType === "set-security") && (
                         <button type="button" onClick={() => setFormType("login")} style={linkStyle}>
                           Already have an account? Sign in ↗
                         </button>
                       )}
-                      {(formType === "forgot" || formType === "reset" || formType === "verify") && (
+                      {(formType === "check-security" || formType === "reset") && (
                         <button type="button" onClick={() => setFormType("login")} style={linkStyle}>
                           ← Back to sign in
                         </button>
@@ -528,7 +520,6 @@ const Auth = () => {
                   </form>
                 </div>
 
-                {/* Terms */}
                 <p style={{
                   textAlign: "center", marginTop: "1.5rem",
                   fontSize: "0.68rem", color: "rgba(255,255,255,0.18)",
@@ -541,7 +532,6 @@ const Auth = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <div style={{
           textAlign: "center", marginTop: "2rem",
           fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.18em",
@@ -552,7 +542,6 @@ const Auth = () => {
         </div>
       </div>
 
-      {/* ─── Global styles ───────────────────────────────────── */}
       <style>{`
         @keyframes auth-spin {
           to { transform: rotate(360deg); }
