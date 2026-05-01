@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Compass, Disc3, BookOpen, Mic2, Radio, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2 } from "lucide-react";
+import { Compass, Disc3, BookOpen, Mic2, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useUser } from "../../context/UserContext";
@@ -13,7 +13,6 @@ const MENU = [
   { name: "Genres",     path: "/genres",   icon: Disc3    },
   { name: "Albums",     path: "/albums",   icon: BookOpen },
   { name: "Artists",    path: "/artists",  icon: Mic2     },
-  { name: "Radio",      path: "/radio",    icon: Radio    },
 ];
 
 const LIBRARY = [

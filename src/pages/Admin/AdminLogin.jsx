@@ -21,6 +21,10 @@ const AdminLogin = ({ onLogin }) => {
         { email, password },
         { withCredentials: true }
       );
+      // Store token in localStorage so it works cross-origin (cookies unreliable on Render→Vercel)
+      if (res.data?.token) {
+        localStorage.setItem('admin_token', res.data.token);
+      }
       toast.success('Access granted');
       onLogin(res.data?.admin?.name);
     } catch (err) {

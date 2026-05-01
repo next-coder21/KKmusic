@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, TrendingUp, Music2, Headphones, Sparkles, Zap, Mic2, X } from "lucide-react";
 import { useUser } from "../context/UserContext";
@@ -68,31 +69,53 @@ function ChartRow({ rank, song, onPlay }) {
 
 export default function Home() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
+  const navigate = useNavigate();
   const email = user?.email;
 
-  const [songs, setSongs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [songs,    setSongs]    = useState([]);
+  const [artists,  setArtists]  = useState([]);
+  const [history,  setHistory]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [activeAd, setActiveAd] = useState(null);
 
   useEffect(() => {
     let alive = true;
-    axios.get(`${API_CONFIG.MUSIC_URL}/songs`)
-      .then(r => { if (alive) setSongs(r.data || []); })
-      .catch(() => {})
-      .finally(() => { if (alive) setLoading(false); });
-      
+
+    const fetchAll = async () => {
+      try {
+        const [songsRes, artistsRes] = await Promise.all([
+          axios.get(`${API_CONFIG.MUSIC_URL}/songs`),
+          axios.get(`${API_CONFIG.MUSIC_URL}/artists`),
+        ]);
+        if (alive) {
+          setSongs(songsRes.data || []);
+          setArtists(artistsRes.data || []);
+        }
+      } catch {}
+
+      // Fetch play history for personalised Daily Discovery
+      if (email) {
+        try {
+          const h = await axios.get(`${API_CONFIG.AUTH_URL}/play-history`, { withCredentials: true });
+          if (alive) setHistory(h.data || []);
+        } catch {}
+      }
+
+      if (alive) setLoading(false);
+    };
+
+    fetchAll();
+
     // Fetch Active Ad for popup (once per session)
     if (!sessionStorage.getItem("muve_ad_shown")) {
       axios.get(`${API_CONFIG.AUTH_URL}/ads/active`)
-        .then(res => {
-          if (alive && res.data) setActiveAd(res.data);
-        })
+        .then(res => { if (alive && res.data) setActiveAd(res.data); })
         .catch(() => {});
     }
 
     return () => { alive = false; };
-  }, []);
+  }, [email]);
 
   const closeAd = () => {
     setActiveAd(null);
@@ -104,6 +127,8 @@ export default function Home() {
     try {
       await axios.post(`${API_CONFIG.QUEUE_URL}/add`, { email, songIds: [id], album: false });
       setCurrentSongId(id);
+      setUserStarted(true);
+      setIsPlaying(true);
       setQueueUpdated(p => !p);
     } catch {}
   };
@@ -119,8 +144,19 @@ export default function Home() {
   const trendingSongs = sortedSongs.slice(0, 5);
   const heroSongs     = sortedSongs.slice(0, 5);
   const heroSong      = heroSongs[heroIdx];
-  const radarSongs    = sortedSongs.slice(5, 11);
-  const mixSongs      = [...sortedSongs].reverse().slice(0, 6);
+
+  // Artist Radar — real artist data sorted by song count
+  const radarArtists = useMemo(() => {
+    return [...artists]
+      .sort((a, b) => (parseInt(b.song_count) || 0) - (parseInt(a.song_count) || 0))
+      .slice(0, 6);
+  }, [artists]);
+
+  // Daily Discovery — user's recently played songs; fallback to top songs
+  const mixSongs = useMemo(() => {
+    if (history.length > 0) return history.slice(0, 6).map(songDefaults);
+    return sortedSongs.slice(0, 6);
+  }, [history, sortedSongs]);
 
   // Auto-slide carousel
   useEffect(() => {
@@ -276,29 +312,32 @@ export default function Home() {
         
         {/* Left: Artist Radar */}
         <section>
-          <SectionHeader icon={Sparkles} title="Artist Radar" subtitle="Emerging talent you need to hear" />
+          <SectionHeader icon={Sparkles} title="Artist Radar" subtitle="Top artists in the catalog" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 24 }}>
-            {radarSongs.map((song) => (
-              <motion.div 
+            {radarArtists.map((artist) => (
+              <motion.div
                 whileHover={{ y: -5 }}
-                key={song.id} 
-                style={{ cursor: "pointer" }} 
-                onClick={() => playSong(song.id)}
+                key={artist.id}
+                style={{ cursor: "pointer" }}
+                onClick={() => navigate("/artists")}
               >
-                <div style={{ 
-                  width: "100%", aspectRatio: "1/1.1", 
+                <div style={{
+                  width: "100%", aspectRatio: "1/1.1",
                   background: "#f0f0f0", border: "2px solid #000",
                   marginBottom: 12, overflow: "hidden", position: "relative"
                 }}>
-                  <img src={song.cover_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt={song.artist_name} />
-                  <div style={{ 
+                  {artist.image_url
+                    ? <img src={artist.image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt={artist.name} />
+                    : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#e8e8e8" }}><Music2 size={40} style={{ opacity: 0.2 }} /></div>
+                  }
+                  <div style={{
                     position: "absolute", bottom: 0, width: "100%", padding: "6px",
                     background: "rgba(204, 255, 0, 0.95)", borderTop: "2px solid #000",
                     fontWeight: 900, fontSize: 9, textTransform: "uppercase", textAlign: "center"
                   }}>VERIFIED ARTIST</div>
                 </div>
-                <h4 style={{ fontSize: "1rem", fontWeight: 900, margin: 0, textTransform: "uppercase" }}>{song.artist_name}</h4>
-                <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", opacity: 0.3, marginTop: 2 }}>{song.play_count} listeners</p>
+                <h4 style={{ fontSize: "1rem", fontWeight: 900, margin: 0, textTransform: "uppercase" }}>{artist.name}</h4>
+                <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", opacity: 0.3, marginTop: 2 }}>{artist.song_count || 0} tracks</p>
               </motion.div>
             ))}
           </div>
@@ -312,7 +351,7 @@ export default function Home() {
               <ChartRow key={song.id} rank={i + 1} song={song} onPlay={() => playSong(song.id)} />
             ))}
           </div>
-          <button style={{ width: "100%", marginTop: 16, padding: "12px", background: "transparent", border: "1.5px solid #000", color: "#000", fontWeight: 900, fontSize: 10, textTransform: "uppercase", cursor: "pointer" }}>
+          <button onClick={() => navigate("/search")} style={{ width: "100%", marginTop: 16, padding: "12px", background: "transparent", border: "1.5px solid #000", color: "#000", fontWeight: 900, fontSize: 10, textTransform: "uppercase", cursor: "pointer" }}>
             View Full Charts ↗
           </button>
         </section>

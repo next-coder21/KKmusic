@@ -16,7 +16,7 @@ import Login from "../components/Auth/Login";
 import AdminApp from "../pages/Admin/AdminApp";
 import { useUser } from "../context/UserContext";
 import ErrorBoundary from "../components/common/ErrorBoundary";
-import { PlayerProvider } from "../context/PlayerContext";
+import { PlayerProvider, usePlayer } from "../context/PlayerContext";
 import Player from "../components/Player/Player";
 
 function PrivateRoute({ children }) {
@@ -46,6 +46,14 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
   const showUI  = !hideUI && !loading && !!user;
 
   if (!showUI) {
+    // Still verifying token — don't redirect yet, show loading screen
+    if (loading && !hideUI) {
+      return (
+        <div style={{ background:"#000", height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:"#CCFF00", fontWeight:900, fontSize:14 }}>
+          SYNCING_PROTOCOL...
+        </div>
+      );
+    }
     return (
       <Routes>
         <Route path="/login"   element={<Login />} />
@@ -103,17 +111,20 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
 
         {/* ── PLAYER PANEL (DESKTOP OR MOBILE OVERLAY) ── */}
         <div className="player-wrapper" style={
-          !isDesktop && !playerDockedBottom 
+          !isDesktop && !playerDockedBottom
             ? { position: "fixed", inset: 0, zIndex: 2000, background: "#000", display: "flex", flexDirection: "column" }
-            : { gridArea: "player", borderLeft: "3px solid #000", background: "#000", display: (playerDockedBottom || !isDesktop) ? 'none' : 'flex' }
+            : { gridArea: "player", borderLeft: "3px solid #000", background: "#000", display: (!playerDockedBottom && isDesktop) ? 'flex' : 'none' }
         }>
-            <ErrorBoundary label="PlayerPanel">
-              <Player 
-                forceBar={false} 
-                onToggleDock={() => setPlayerDockedBottom(true)} 
-                isMobileView={!isDesktop}
-              />
-            </ErrorBoundary>
+            {/* Only mount when visible — prevents two <audio> elements playing at once */}
+            {!playerDockedBottom && (
+              <ErrorBoundary label="PlayerPanel">
+                <Player
+                  forceBar={false}
+                  onToggleDock={() => setPlayerDockedBottom(true)}
+                  isMobileView={!isDesktop}
+                />
+              </ErrorBoundary>
+            )}
         </div>
       </div>
 
@@ -146,11 +157,18 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
   );
 }
 
+// Single <audio> element that never unmounts — survives bar↔panel transitions
+function PersistentAudio() {
+  const { audioRef } = usePlayer();
+  return <audio ref={audioRef} preload="metadata" style={{ display: "none" }} />;
+}
+
 export default function Common() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   return (
     <Router>
       <PlayerProvider>
+        <PersistentAudio />
         <AppLayout
           mobileSidebarOpen={mobileSidebarOpen}
           setMobileSidebarOpen={setMobileSidebarOpen}

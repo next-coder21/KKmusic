@@ -8,7 +8,7 @@ import { Play, Heart, Clock, MoreHorizontal } from "lucide-react";
 
 export default function Favorites() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,6 +27,8 @@ export default function Favorites() {
     try {
       await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: [id] });
       setCurrentSongId(id); setQueueUpdated(prev => !prev);
+      setUserStarted(true);
+      setIsPlaying(true);
     } catch {}
   };
 

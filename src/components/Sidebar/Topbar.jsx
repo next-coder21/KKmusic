@@ -1,16 +1,14 @@
-import React, { useRef, useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Bell, Settings, User, LogOut, Search, ChevronDown, PanelLeft, Layout, Maximize2, Minimize2 } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Menu, X, Bell, Settings, User, LogOut, Search, ChevronDown, PanelLeft, Layout } from "lucide-react";
 import { useUser } from "../../context/UserContext";
 import { useNotifications } from "../../context/NotificationsContext";
-import Logo from "../../assets/Muves.png";
 import DefaultAvatar from "../../assets/avatardef.png";
 import axios from "axios";
 import ApiService from "../../services/ApiService";
-import { API_CONFIG } from "../../config";
 import { motion, AnimatePresence } from "framer-motion";
 
-const TABS = ["Music", "Podcast", "Live"];
+const TABS = ["Music"];
 
 export default function Topbar({ 
   mobileSidebarOpen, setMobileSidebarOpen, 
@@ -44,7 +42,10 @@ export default function Topbar({
   
   const handleLogout = async () => {
     try { await axios.post(`${ApiService.getBaseUrl()}/logout`, {}, { withCredentials: true }); } catch {}
-    setUser(null); navigate("/login");
+    localStorage.removeItem("token");
+    localStorage.removeItem("isAuthenticated");
+    setUser(null);
+    navigate("/login");
   };
 
   const DR_STYLE = {

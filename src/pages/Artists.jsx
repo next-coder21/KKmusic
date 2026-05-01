@@ -5,6 +5,7 @@ import axios from "axios";
 import ApiService from "../services/ApiService";
 import { API_CONFIG } from "../config";
 import { usePlayer } from "../context/PlayerContext";
+import { useUser } from "../context/UserContext";
 
 const BASE = API_CONFIG.AUTH_URL;
 
@@ -23,7 +24,9 @@ function ArtistSkeleton() {
 }
 
 export default function Artists() {
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
+  const { user } = useUser();
+  const email = user?.email;
   const [artists, setArtists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -46,12 +49,19 @@ export default function Artists() {
   }, [artists, searchTerm, sort]);
 
   const playSongsByArtist = async (artistId) => {
+    if (!email) return;
     try {
       const allSongs = await axios.get(`${BASE}/music/songs`);
-      const artistSongs = (allSongs.data || []).filter(s => s.artist_id === artistId || s.artist_name === artists.find(a => a.id === artistId)?.name);
+      const artistSongs = (allSongs.data || []).filter(s => s.artist_id === artistId);
       if (!artistSongs.length) return;
-      const firstId = artistSongs[0].id;
-      setCurrentSongId(firstId);
+      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, {
+        email,
+        songIds: artistSongs.map(s => s.id),
+        album: true,
+      });
+      setCurrentSongId(artistSongs[0].id);
+      setUserStarted(true);
+      setIsPlaying(true);
       setQueueUpdated(p => !p);
     } catch {}
   };

@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files (never commit secrets / per-env URLs)
+.env
+.env.*
+!.env.example
+
+# Old archives / build cruft
+*.zip

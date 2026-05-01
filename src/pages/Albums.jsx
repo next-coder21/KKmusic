@@ -12,7 +12,7 @@ const BASE = API_CONFIG.AUTH_URL;
 
 export default function Albums() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated, setIsPlaying, setCurrentIndex } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
   const email = user?.email;
 
   const [albums, setAlbums] = useState([]);
@@ -55,7 +55,7 @@ export default function Albums() {
       });
       
       setCurrentSongId(albumSongs[0].id);
-      setCurrentIndex(0);
+      setUserStarted(true);
       setIsPlaying(true);
       setQueueUpdated(p => !p);
       toast.success(`Playing: ${albums.find(a => a.id === albumId)?.title}`);

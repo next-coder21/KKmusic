@@ -23,7 +23,7 @@ const Bone = ({ w="100%", h=14, r=6 }) => <div className="bone" style={{ width:w
 
 export default function Library() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
   const email = user?.email;
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -120,6 +120,8 @@ export default function Library() {
     try {
       await axios.post(`${BASE}/queue/add`, { email, songIds:[id], album:false });
       setCurrentSongId(id); setQueueUpdated(p=>!p);
+      setUserStarted(true);
+      setIsPlaying(true);
     } catch {}
   };
 

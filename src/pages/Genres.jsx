@@ -27,7 +27,7 @@ function GenreSkeleton() {
 
 export default function Genres() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
   const [genres, setGenres] = useState([]);
   const [topGenres, setTopGenres] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,12 +52,20 @@ export default function Genres() {
   const filtered = genres.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const playGenre = async (genreName) => {
+    if (!user?.email) return;
     try {
-       const res = await axios.get(`${BASE}/music/songs`);
-       const genreSongs = res.data.filter(s => s.genre === genreName || s.genre_name === genreName);
-       if (!genreSongs.length) return;
-       setCurrentSongId(genreSongs[0].id);
-       setQueueUpdated(p => !p);
+      const res = await axios.get(`${BASE}/music/songs`);
+      const genreSongs = res.data.filter(s => s.genre === genreName);
+      if (!genreSongs.length) return;
+      await axios.post(`${API_CONFIG.QUEUE_URL}/add`, {
+        email: user.email,
+        songIds: genreSongs.map(s => s.id),
+        album: true,
+      });
+      setCurrentSongId(genreSongs[0].id);
+      setUserStarted(true);
+      setIsPlaying(true);
+      setQueueUpdated(p => !p);
     } catch {}
   };
 
@@ -153,6 +161,7 @@ export default function Genres() {
            {filtered.map((g, i) => (
              <motion.div
                key={g.id}
+               className="genre-tile"
                initial={{ opacity: 0, scale: 0.95 }}
                animate={{ opacity: 1, scale: 1 }}
                transition={{ delay: i * 0.03 }}
@@ -183,7 +192,7 @@ export default function Genres() {
                   </div>
                </div>
                <style>{`
-                 div:hover .genre-play-btn { opacity: 1 !important; transform: scale(1.1); }
+                 .genre-tile:hover .genre-play-btn { opacity: 1 !important; transform: scale(1.1); }
                `}</style>
              </motion.div>
            ))}

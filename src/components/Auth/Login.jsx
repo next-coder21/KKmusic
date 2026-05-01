@@ -1,50 +1,148 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import axios from "axios";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../context/UserContext";
-import ApiService from "../../services/ApiService";
+import http from "../../services/http";
 import { WEBSITE_URL } from "../../config";
 
-/* ── MUSIKLY Style Field ────────────────────────────────── */
-const Field = ({ label, ...props }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-[10px] font-black tracking-widest uppercase text-black/50">{label}</label>
-    <input 
-      {...props}
-      className="w-full px-4 py-3 border-2 sm:border-[3px] border-black bg-white text-black font-black text-sm uppercase outline-none focus:bg-[#CCFF00] transition-colors"
-    />
+/* ─── Form field component ─────────────────────────────── */
+const Field = ({ label, icon, ...props }) => {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <label style={{
+        fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.18em",
+        textTransform: "uppercase", color: focused ? "#C8FF00" : "rgba(255,255,255,0.35)",
+        transition: "color 0.2s ease",
+      }}>
+        {icon && <span style={{ marginRight: "0.35rem" }}>{icon}</span>}
+        {label}
+      </label>
+      <div style={{ position: "relative" }}>
+        <input
+          {...props}
+          onFocus={e => { setFocused(true); props.onFocus?.(e); }}
+          onBlur={e => { setFocused(false); props.onBlur?.(e); }}
+          style={{
+            width: "100%",
+            padding: "0.875rem 1.1rem",
+            background: focused ? "rgba(200,255,0,0.04)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${focused ? "rgba(200,255,0,0.5)" : "rgba(255,255,255,0.1)"}`,
+            borderRadius: "10px",
+            color: "#fff",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            fontFamily: "inherit",
+            outline: "none",
+            transition: "all 0.25s ease",
+            boxShadow: focused ? "0 0 0 3px rgba(200,255,0,0.08), 0 0 20px rgba(200,255,0,0.06)" : "none",
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+/* ─── OTP input ─────────────────────────────────────────── */
+const OtpField = ({ value, onChange }) => {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <label style={{
+        fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.18em",
+        textTransform: "uppercase", color: focused ? "#C8FF00" : "rgba(255,255,255,0.35)",
+        transition: "color 0.2s ease",
+      }}>
+        🔐 Verification Code
+      </label>
+      <input
+        type="text" maxLength="6" required
+        value={value} onChange={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width: "100%", padding: "1rem",
+          textAlign: "center", letterSpacing: "0.55em",
+          fontSize: "1.8rem", fontWeight: 900, fontFamily: "monospace",
+          background: focused ? "rgba(200,255,0,0.04)" : "rgba(255,255,255,0.04)",
+          border: `1px solid ${focused ? "rgba(200,255,0,0.5)" : "rgba(255,255,255,0.1)"}`,
+          borderRadius: "10px",
+          color: "#C8FF00",
+          outline: "none",
+          transition: "all 0.25s ease",
+          boxShadow: focused ? "0 0 0 3px rgba(200,255,0,0.08)" : "none",
+        }}
+        placeholder="· · · · · ·"
+      />
+    </div>
+  );
+};
+
+/* ─── Content per form state ────────────────────────────── */
+const TITLES = {
+  login:  { h: "Sign in to\nyour vibes.",   sub: "Welcome back to the stream." },
+  signup: { h: "Join the\nmuvement.",        sub: "Create your Muve𝄞 account." },
+  verify: { h: "Check your\ninbox.",         sub: "Enter the code we sent you." },
+  forgot: { h: "Forgot\npassword?",          sub: "We'll send a recovery code." },
+  reset:  { h: "Set new\npassword.",         sub: "Choose something strong." },
+};
+const BTN = {
+  login: "Sign in ↗",
+  signup: "Create account ↗",
+  verify: "Verify email ↗",
+  forgot: "Send reset code ↗",
+  reset: "Update password ↗",
+};
+
+/* ─── Left panel decorative stat ───────────────────────── */
+const LeftStat = ({ value, label }) => (
+  <div>
+    <p style={{ fontSize: "1.6rem", fontWeight: 900, color: "#C8FF00", letterSpacing: "-0.03em" }}>{value}</p>
+    <p style={{ fontSize: "0.65rem", fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: "0.14em", textTransform: "uppercase" }}>{label}</p>
   </div>
 );
 
-const TITLES = {
-  login:  { h: "Sign in to \nyour vibes.",   sub: "Welcome back." },
-  signup: { h: "Join the \nmuvement.",       sub: "Create account." },
-  verify: { h: "Check your \ninbox.",        sub: "Verify email." },
-  forgot: { h: "Forgot \npassword?",         sub: "Recovery code." },
-  reset:  { h: "Set new \npassword.",        sub: "Update creds." },
-};
+/* ─── Animated waveform decoration ─────────────────────── */
+const Waveform = () => (
+  <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "36px" }}>
+    {[18, 28, 12, 36, 22, 32, 16, 26, 10, 30, 20, 24, 14, 32, 18].map((h, i) => (
+      <div
+        key={i}
+        style={{
+          width: "3px",
+          height: `${h}px`,
+          borderRadius: "2px",
+          background: i % 3 === 0 ? "#C8FF00" : "rgba(200,255,0,0.35)",
+          animation: `wave-${(i % 4) + 1} ${1.2 + (i % 4) * 0.3}s ease-in-out infinite`,
+          animationDelay: `${i * 0.08}s`,
+        }}
+      />
+    ))}
+    <style>{`
+      @keyframes wave-1 { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.4)} }
+      @keyframes wave-2 { 0%,100%{transform:scaleY(0.6)} 50%{transform:scaleY(1)} }
+      @keyframes wave-3 { 0%,100%{transform:scaleY(1)} 33%{transform:scaleY(0.3)} 66%{transform:scaleY(0.8)} }
+      @keyframes wave-4 { 0%,100%{transform:scaleY(0.5)} 50%{transform:scaleY(1)} }
+    `}</style>
+  </div>
+);
 
-const BTN = { 
-  login: "Log in ↗", 
-  signup: "Join now ↗", 
-  verify: "Verify ↗", 
-  forgot: "Send code ↗", 
-  reset: "Update ↗" 
-};
-
+/* ════════════════════════════════════════════════════════
+   MAIN AUTH COMPONENT
+════════════════════════════════════════════════════════ */
 const Auth = () => {
-  const [formType, setFormType] = useState("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [name, setName] = useState("");
+  const [formType, setFormType]           = useState("login");
+  const [email, setEmail]                 = useState("");
+  const [password, setPassword]           = useState("");
+  const [newPassword, setNewPassword]     = useState("");
+  const [name, setName]                   = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { setUser } = useUser();
-  const navigate = useNavigate();
+  const [otp, setOtp]                     = useState("");
+  const [isLoading, setIsLoading]         = useState(false);
+  const { setUser }                       = useUser();
+  const navigate                          = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,200 +151,435 @@ const Auth = () => {
       let response;
       switch (formType) {
         case "login":
-          response = await axios.post(`${ApiService.getBaseUrl()}/login`, { email, password }, { withCredentials: true });
+          response = await http.post("/auth/login", { email, password });
           break;
         case "signup":
-          if (password !== confirmPassword) throw new Error("Passwords do not match!");
-          response = await axios.post(`${ApiService.getBaseUrl()}/register`, { name, email, password });
+          if (password !== confirmPassword) throw new Error("Passwords do not match");
+          response = await http.post("/auth/register", { name, email, password });
           break;
         case "forgot":
-          response = await axios.post(`${ApiService.getBaseUrl()}/forgot-password`, { email });
+          response = await http.post("/auth/forgot-password", { email });
           break;
         case "verify":
-          response = await axios.post(`${ApiService.getBaseUrl()}/verify`, { email, otp });
+          response = await http.post("/auth/verify", { email, otp });
           break;
         case "reset":
-          if (newPassword !== confirmPassword) throw new Error("Passwords do not match!");
-          response = await axios.post(`${ApiService.getBaseUrl()}/reset-password`, { email, otp, newPassword });
+          if (newPassword !== confirmPassword) throw new Error("Passwords do not match");
+          response = await http.post("/auth/reset-password", { email, otp, newPassword });
           break;
       }
       handleFormSuccess(response.data);
-    } catch (error) { handleFormError(error); }
+    } catch (err) { handleFormError(err); }
     finally { setIsLoading(false); }
   };
 
   const handleFormSuccess = (data) => {
     switch (formType) {
       case "login":
-        localStorage.setItem("token", data.token);
+        if (data.token) localStorage.setItem("token", data.token);
         localStorage.setItem("isAuthenticated", "true");
-        setUser(data.user); navigate("/"); break;
-      case "signup": alert("Signup successful! Please verify your email."); setFormType("verify"); break;
-      case "verify": alert("Email verified successfully!"); setFormType("login"); break;
-      case "reset":  alert("Password reset successfully!"); setFormType("login"); break;
-      case "forgot": alert("Code sent!"); setFormType("reset"); break;
+        setUser(data.user);
+        toast.success("Welcome back!");
+        navigate("/");
+        break;
+      case "signup":  toast.success("Account created — verify your email."); setFormType("verify"); break;
+      case "verify":  toast.success("Email verified!");        setFormType("login");  break;
+      case "reset":   toast.success("Password updated.");      setFormType("login");  break;
+      case "forgot":  toast.success("Recovery code sent.");    setFormType("reset");  break;
     }
   };
 
-  const handleFormError = (error) => {
-    alert(error.response?.data?.message || error.message || "An error occurred.");
+  const handleFormError = (err) => {
+    const msg =
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      err?.message ||
+      "Something went wrong.";
+    toast.error(msg);
   };
 
   return (
-    <div className="flex min-h-screen bg-white text-black overflow-x-hidden selection:bg-[#CCFF00] font-sans">
-      
-      {/* ══ LEFT PANEL (MAGAZINE STYLE) ═════════════════════ */}
-      <div className="hidden lg:flex w-[35%] xl:w-[40%] bg-black relative flex-col justify-between p-10 overflow-hidden shrink-0">
-        
-        {/* Repeating Vertical Text */}
-        <div className="absolute right-0 top-0 bottom-0 w-12 bg-[#CCFF00] flex flex-col items-center justify-center gap-20 overflow-hidden">
-          <span className="rotate-90 text-black font-black text-lg tracking-[0.3em] whitespace-nowrap">SIGN IN ↗</span>
-          <span className="rotate-90 text-black font-black text-lg tracking-[0.3em] whitespace-nowrap">SIGN IN ↗</span>
-          <span className="rotate-90 text-black font-black text-lg tracking-[0.3em] whitespace-nowrap">SIGN IN ↗</span>
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
+      background: "#07070f",
+      color: "#fff",
+      overflow: "hidden",
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+
+      {/* ══ LEFT PANEL ═════════════════════════════════════════ */}
+      <div style={{
+        display: "none",
+        width: "42%",
+        flexShrink: 0,
+        background: "#000",
+        position: "relative",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "2.5rem",
+        overflow: "hidden",
+      }} className="auth-left-panel">
+
+        {/* Background gradient orbs */}
+        <div style={{
+          position: "absolute", top: "-80px", left: "-80px",
+          width: 360, height: 360, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)",
+          pointerEvents: "none",
+        }} />
+        <div style={{
+          position: "absolute", bottom: "10%", right: "-40px",
+          width: 280, height: 280, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(200,255,0,0.1) 0%, transparent 70%)",
+          pointerEvents: "none",
+        }} />
+
+        {/* Vertical lime accent strip */}
+        <div style={{
+          position: "absolute", right: 0, top: 0, bottom: 0, width: 48,
+          background: "#C8FF00",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: "5rem", overflow: "hidden",
+        }}>
+          {["MUVE𝄞 ↗", "MUVE𝄞 ↗", "MUVE𝄞 ↗"].map((t, i) => (
+            <span key={i} style={{
+              transform: "rotate(90deg)",
+              color: "#000", fontWeight: 900, fontSize: "0.75rem",
+              letterSpacing: "0.25em", whiteSpace: "nowrap",
+            }}>{t}</span>
+          ))}
         </div>
 
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-red-500" />
-          <span className="text-white font-black text-xl tracking-tighter uppercase">Muve𝄞</span>
+        {/* TOP: Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 10,
+            background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <span style={{ color: "#fff", fontSize: "1rem" }}>𝄞</span>
+          </div>
+          <span style={{ fontWeight: 900, fontSize: "1.1rem", letterSpacing: "-0.03em", color: "#fff" }}>
+            KK-lisn
+          </span>
         </div>
 
-        {/* Center Text */}
-        <div>
-          <div className="w-40 h-2 bg-gradient-to-r from-purple-600 via-red-500 to-[#CCFF00] mb-6" />
-          <h1 className="text-white text-4xl xl:text-5xl font-black leading-[1] tracking-tighter uppercase mb-6">
-            The sound <br/> of your <br/> freedom.
+        {/* CENTER: Headline + waveform */}
+        <div style={{ paddingRight: "3rem" }}>
+          <Waveform />
+          <div style={{
+            width: 64, height: 2,
+            background: "linear-gradient(90deg, #7c3aed, #C8FF00)",
+            margin: "1.5rem 0",
+            borderRadius: 1,
+          }} />
+          <h1 style={{
+            fontSize: "clamp(2rem, 4vw, 3rem)",
+            fontWeight: 900, lineHeight: 1.0,
+            letterSpacing: "-0.04em",
+            textTransform: "uppercase",
+            color: "#fff",
+            marginBottom: "1.25rem",
+          }}>
+            The sound<br />of your<br />
+            <span style={{ color: "#C8FF00" }}>freedom.</span>
           </h1>
-          <p className="text-white/40 font-bold text-sm max-w-[240px] leading-relaxed uppercase">
-            Stream, discover, and audit your music journey with precision.
+          <p style={{
+            color: "rgba(255,255,255,0.35)",
+            fontSize: "0.8rem", fontWeight: 600,
+            lineHeight: 1.7, textTransform: "uppercase",
+            letterSpacing: "0.06em", maxWidth: "240px",
+          }}>
+            Stream, discover, and feel every track — powered by AI and built for the obsessed.
           </p>
         </div>
 
-        {/* Bottom Detail */}
-        <div className="flex items-center gap-4">
-           <div className="w-10 h-10 border-2 border-white/20 flex items-center justify-center text-white/40 font-black text-sm">↗</div>
-           <span className="text-white/20 font-black uppercase text-[10px] tracking-widest">v1.4.0 MUVE MUSIC CORP</span>
+        {/* BOTTOM: Stats row */}
+        <div style={{
+          display: "flex", gap: "2.5rem",
+          paddingRight: "3rem",
+          paddingTop: "1.5rem",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <LeftStat value="99.9%" label="Lyrics Accuracy" />
+          <LeftStat value="50+" label="Languages" />
+          <LeftStat value="24-bit" label="Lossless" />
         </div>
       </div>
 
-      {/* ══ RIGHT PANEL (CLEAN FORM) ════════════════════════ */}
-      <div className="flex-1 flex flex-col p-5 sm:p-10 lg:p-16 min-h-screen overflow-y-auto">
-        
-        {/* Mobile / Laptop Top Bar */}
-        <div className="flex items-center justify-between mb-8 sm:mb-12">
-          <div className="lg:hidden flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-600 to-red-500" />
-            <span className="font-black text-base uppercase">Muve𝄞</span>
+      {/* ══ RIGHT PANEL ════════════════════════════════════════ */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        padding: "2rem",
+        minHeight: "100vh",
+        overflowY: "auto",
+        position: "relative",
+      }}>
+
+        {/* Subtle bg gradient */}
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+          background: "radial-gradient(ellipse at 60% 10%, rgba(124,58,237,0.08) 0%, transparent 60%)",
+        }} />
+
+        {/* Top bar */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: "2.5rem", position: "relative", zIndex: 1,
+        }}>
+          {/* Mobile logo */}
+          <div className="auth-mobile-logo" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ color: "#fff", fontSize: "0.85rem" }}>𝄞</span>
+            </div>
+            <span style={{ fontWeight: 900, fontSize: "1rem", letterSpacing: "-0.03em", color: "#fff" }}>
+              KK-lisn
+            </span>
           </div>
-          <a 
-            href={WEBSITE_URL} 
-            className="flex items-center gap-2 font-black uppercase text-[10px] tracking-widest text-black/40 hover:text-black transition-colors ml-auto"
+
+          <a
+            href={WEBSITE_URL}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.4rem",
+              fontSize: "0.72rem", fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: "0.12em",
+              color: "rgba(255,255,255,0.3)",
+              textDecoration: "none",
+              transition: "color 0.2s ease",
+              marginLeft: "auto",
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = "rgba(255,255,255,0.7)"}
+            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
           >
-            <ArrowLeft size={14} className="max-sm:hidden" /> Back <span className="max-sm:hidden">to platform</span>
+            <ArrowLeft size={12} />
+            Back to platform
           </a>
         </div>
 
-        <div className="flex-1 flex items-center justify-center max-sm:items-start">
-          <div className="w-full max-w-[380px]">
+        {/* Form area */}
+        <div style={{
+          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          position: "relative", zIndex: 1,
+        }}>
+          <div style={{ width: "100%", maxWidth: "400px" }}>
             <AnimatePresence mode="wait">
-              <motion.div key={formType}
-                initial={{ opacity:0, y:10 }}
-                animate={{ opacity:1, y:0 }}
-                exit={{ opacity:0, y:-10 }}
-                transition={{ duration:0.3, ease:[0.2, 0.8, 0.2, 1] }}>
+              <motion.div
+                key={formType}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {/* Glass card wrapper */}
+                <div style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "20px",
+                  padding: "2.5rem",
+                  backdropFilter: "blur(20px)",
+                  boxShadow: "0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)",
+                }}>
 
-                <header className="mb-8 sm:mb-10">
-                   <h2 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase leading-[0.95] whitespace-pre-line mb-3">
-                     {TITLES[formType]?.h}
-                   </h2>
-                   <p className="font-bold text-black/30 text-sm sm:text-base uppercase italic tracking-tight">
-                     {TITLES[formType]?.sub}
-                   </p>
-                </header>
-
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-5">
-                  {formType === "signup" && (
-                    <Field label="Full Name" type="text" placeholder="WHO ARE YOU?"
-                      value={name} onChange={e => setName(e.target.value)} required />
-                  )}
-                  {(formType === "login" || formType === "signup" || formType === "forgot") && (
-                    <Field label="Email" type="email" placeholder="YOUR@EMAIL.COM"
-                      value={email} onChange={e => setEmail(e.target.value)} required />
-                  )}
-                  {(formType === "login" || formType === "signup") && (
-                    <Field label="Password" type="password" placeholder="••••••••"
-                      value={password} onChange={e => setPassword(e.target.value)} required />
-                  )}
-                  {formType === "signup" && (
-                    <Field label="Confirm" type="password" placeholder="••••••••"
-                      value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
-                  )}
-
-                  {(formType === "verify" || formType === "reset") && (
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[10px] font-black tracking-widest uppercase text-black/50">Verification Code</label>
-                      <input type="text" placeholder="· · · · · ·"
-                        value={otp} onChange={e => setOtp(e.target.value)} maxLength="6" required
-                        className="w-full border-2 sm:border-[3px] border-black px-4 py-4 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] outline-none focus:bg-[#CCFF00] transition-colors"
-                      />
+                  {/* Header */}
+                  <div style={{ marginBottom: "2rem" }}>
+                    {/* Form type indicator */}
+                    <div style={{ display: "flex", gap: "0.35rem", marginBottom: "1.5rem" }}>
+                      {["login", "signup"].map(type => (
+                        <div key={type} style={{
+                          width: type === formType ? 24 : 6,
+                          height: 4, borderRadius: 2,
+                          background: type === formType ? "#C8FF00" : "rgba(255,255,255,0.12)",
+                          transition: "all 0.3s ease",
+                        }} />
+                      ))}
                     </div>
-                  )}
 
-                  {formType === "reset" && (
-                    <>
-                      <Field label="New Password" type="password" placeholder="••••••••"
-                        value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
-                      <Field label="Confirm New" type="password" placeholder="••••••••"
+                    <h2 style={{
+                      fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                      fontWeight: 900, lineHeight: 1.05,
+                      letterSpacing: "-0.035em",
+                      textTransform: "uppercase",
+                      whiteSpace: "pre-line",
+                      color: "#fff",
+                      marginBottom: "0.6rem",
+                    }}>
+                      {TITLES[formType]?.h}
+                    </h2>
+                    <p style={{
+                      fontSize: "0.82rem", color: "rgba(255,255,255,0.38)",
+                      fontWeight: 600, letterSpacing: "0.04em",
+                    }}>
+                      {TITLES[formType]?.sub}
+                    </p>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+
+                    {formType === "signup" && (
+                      <Field label="Full Name" icon="👤" type="text" placeholder="Your name"
+                        value={name} onChange={e => setName(e.target.value)} required />
+                    )}
+
+                    {(formType === "login" || formType === "signup" || formType === "forgot") && (
+                      <Field label="Email" icon="✉" type="email" placeholder="you@example.com"
+                        value={email} onChange={e => setEmail(e.target.value)} required />
+                    )}
+
+                    {(formType === "login" || formType === "signup") && (
+                      <Field label="Password" icon="🔑" type="password" placeholder="••••••••"
+                        value={password} onChange={e => setPassword(e.target.value)} required />
+                    )}
+
+                    {formType === "signup" && (
+                      <Field label="Confirm Password" icon="🔑" type="password" placeholder="••••••••"
                         value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
-                    </>
-                  )}
+                    )}
 
-                  <div className="mt-2 flex flex-col gap-4 sm:gap-5">
+                    {(formType === "verify" || formType === "reset") && (
+                      <OtpField value={otp} onChange={e => setOtp(e.target.value)} />
+                    )}
+
+                    {formType === "reset" && (
+                      <>
+                        <Field label="New Password" icon="🔑" type="password" placeholder="••••••••"
+                          value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                        <Field label="Confirm New Password" icon="🔑" type="password" placeholder="••••••••"
+                          value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                      </>
+                    )}
+
+                    {/* Submit button */}
                     <button
-                      type="submit" disabled={isLoading}
-                      className="w-full py-4 border-2 sm:border-[3px] border-black bg-[#CCFF00] text-black font-black uppercase text-lg hover:shadow-[-6px_6px_0_0_#000] active:translate-x-1 active:-translate-y-1 active:shadow-[-2px_2px_0_0_#000] transition-all disabled:opacity-50"
+                      type="submit"
+                      disabled={isLoading}
+                      style={{
+                        marginTop: "0.5rem",
+                        width: "100%",
+                        padding: "0.9rem",
+                        borderRadius: "10px",
+                        background: isLoading ? "rgba(200,255,0,0.5)" : "#C8FF00",
+                        color: "#000",
+                        fontWeight: 900,
+                        fontSize: "0.85rem",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        border: "none",
+                        cursor: isLoading ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 4px 20px rgba(200,255,0,0.2)",
+                      }}
+                      onMouseEnter={e => {
+                        if (!isLoading) {
+                          e.currentTarget.style.boxShadow = "0 6px 28px rgba(200,255,0,0.35)";
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(200,255,0,0.2)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
                     >
-                      {isLoading ? "..." : BTN[formType]}
+                      {isLoading ? (
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
+                          <span style={{
+                            width: 14, height: 14, borderRadius: "50%",
+                            border: "2px solid rgba(0,0,0,0.3)",
+                            borderTopColor: "#000",
+                            display: "inline-block",
+                            animation: "auth-spin 0.6s linear infinite",
+                          }} />
+                          Loading…
+                        </span>
+                      ) : BTN[formType]}
                     </button>
 
-                    <div className="flex flex-col gap-3">
+                    {/* Navigation links */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.25rem" }}>
                       {formType === "login" && (
                         <>
-                          <button type="button" onClick={() => setFormType("signup")} className="text-left font-black uppercase text-[10px] tracking-widest hover:underline">
-                            Create account ↗
+                          <button type="button" onClick={() => setFormType("signup")} style={linkStyle}>
+                            No account? Create one ↗
                           </button>
-                          <button type="button" onClick={() => setFormType("forgot")} className="text-left font-black uppercase text-[10px] tracking-widest text-black/30 hover:underline">
-                            Forgot password? ↗
+                          <button type="button" onClick={() => setFormType("forgot")} style={{ ...linkStyle, color: "rgba(255,255,255,0.22)" }}>
+                            Forgot password?
                           </button>
                         </>
                       )}
                       {formType === "signup" && (
-                        <button type="button" onClick={() => setFormType("login")} className="text-left font-black uppercase text-[10px] tracking-widest hover:underline">
-                          Already have an account? Log in ↗
+                        <button type="button" onClick={() => setFormType("login")} style={linkStyle}>
+                          Already have an account? Sign in ↗
                         </button>
                       )}
                       {(formType === "forgot" || formType === "reset" || formType === "verify") && (
-                        <button type="button" onClick={() => setFormType("login")} className="text-left font-black uppercase text-[10px] tracking-widest hover:underline">
-                          ← Back to login
+                        <button type="button" onClick={() => setFormType("login")} style={linkStyle}>
+                          ← Back to sign in
                         </button>
                       )}
                     </div>
-                  </div>
-                </form>
+                  </form>
+                </div>
 
+                {/* Terms */}
+                <p style={{
+                  textAlign: "center", marginTop: "1.5rem",
+                  fontSize: "0.68rem", color: "rgba(255,255,255,0.18)",
+                  fontWeight: 600, letterSpacing: "0.04em",
+                }}>
+                  By continuing you agree to our Terms &amp; Privacy Policy.
+                </p>
               </motion.div>
             </AnimatePresence>
           </div>
         </div>
 
-        {/* Bottom Credit */}
-        <div className="pt-8 sm:pt-10 text-[9px] font-black uppercase tracking-[0.2em] text-black/15 text-center sm:text-left">
-          &copy; {new Date().getFullYear()} Muve𝄞 music corp.
+        {/* Footer */}
+        <div style={{
+          textAlign: "center", marginTop: "2rem",
+          fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.18em",
+          textTransform: "uppercase", color: "rgba(255,255,255,0.12)",
+          position: "relative", zIndex: 1,
+        }}>
+          © {new Date().getFullYear()} Muve𝄞 Music Corp
         </div>
       </div>
 
+      {/* ─── Global styles ───────────────────────────────────── */}
+      <style>{`
+        @keyframes auth-spin {
+          to { transform: rotate(360deg); }
+        }
+        @media (min-width: 1024px) {
+          .auth-left-panel { display: flex !important; }
+          .auth-mobile-logo { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 };
 
 export default Auth;
+
+/* ─── Link button shared style ──────────────────────────── */
+const linkStyle = {
+  background: "transparent",
+  border: "none",
+  color: "rgba(255,255,255,0.4)",
+  fontWeight: 700,
+  fontSize: "0.72rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  textAlign: "left",
+  padding: "0.1rem 0",
+  transition: "color 0.2s ease",
+  textDecoration: "none",
+};

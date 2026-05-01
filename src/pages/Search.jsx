@@ -37,7 +37,7 @@ export default function Search() {
   const [history, setHistory] = useState([]);
   const inputRef = useRef(null);
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
 
   useEffect(() => {
     const save = localStorage.getItem("kk-save-search-history") !== "false";
@@ -84,8 +84,38 @@ export default function Search() {
     try {
       await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: [id], album: false });
       setCurrentSongId(id);
+      setUserStarted(true);
+      setIsPlaying(true);
       setQueueUpdated(p => !p);
     } catch { toast.error("Could not play song"); }
+  };
+
+  const playArtist = async (artistId) => {
+    if (!user?.email) return toast.error("Please login");
+    try {
+      const res = await axios.get(`${API_CONFIG.MUSIC_URL}/songs`);
+      const songs = (res.data || []).filter(s => s.artist_id === artistId);
+      if (!songs.length) return toast.error("No songs for this artist");
+      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: songs.map(s => s.id), album: true });
+      setCurrentSongId(songs[0].id);
+      setUserStarted(true);
+      setIsPlaying(true);
+      setQueueUpdated(p => !p);
+    } catch { toast.error("Could not play artist"); }
+  };
+
+  const playAlbumSearch = async (albumId) => {
+    if (!user?.email) return toast.error("Please login");
+    try {
+      const res = await axios.get(`${API_CONFIG.MUSIC_URL}/songs`);
+      const songs = (res.data || []).filter(s => s.album_id === albumId);
+      if (!songs.length) return toast.error("No songs in this album");
+      await axios.post(`${ApiService.getBaseUrl()}/queue/add`, { email: user.email, songIds: songs.map(s => s.id), album: true });
+      setCurrentSongId(songs[0].id);
+      setUserStarted(true);
+      setIsPlaying(true);
+      setQueueUpdated(p => !p);
+    } catch { toast.error("Could not play album"); }
   };
 
   const hasResults = results.songs.length > 0 || results.artists.length > 0 || results.albums.length > 0;
@@ -277,7 +307,7 @@ export default function Search() {
               <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 10 }}>Artists</p>
               <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6 }} className="scrollbar-hide">
                 {results.artists.map(a => (
-                  <div key={a.id} style={{ flexShrink: 0, width: 88, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <div key={a.id} onClick={() => playArtist(a.id)} style={{ flexShrink: 0, width: 88, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
                     <div style={{ width: 68, height: 68, borderRadius: "50%", overflow: "hidden", border: "1px solid var(--border)" }}>
                       <img src={a.image_url || "/default-avatar.png"} alt={a.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.src = "/default-avatar.png"} />
                     </div>
@@ -294,7 +324,7 @@ export default function Search() {
               <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 10 }}>Albums</p>
               <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 6 }} className="scrollbar-hide">
                 {results.albums.map(al => (
-                  <div key={al.id} style={{ flexShrink: 0, width: 130 }}>
+                  <div key={al.id} onClick={() => playAlbumSearch(al.id)} style={{ flexShrink: 0, width: 130, cursor: "pointer" }}>
                     <div style={{ width: 130, height: 130, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 8 }}>
                       <img src={al.cover_url} alt={al.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.src = "/default-album.jpg"} />
                     </div>
