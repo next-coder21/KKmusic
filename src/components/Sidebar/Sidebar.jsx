@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { Compass, Disc3, BookOpen, Mic2, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2 } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Compass, Disc3, BookOpen, Mic2, Clock, Library, Heart, HardDrive, PlusCircle, ListMusic, Music2, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import http from "../../services/http";
@@ -7,7 +7,8 @@ import { useUser } from "../../context/UserContext";
 import { usePlayer } from "../../context/PlayerContext";
 import ApiService from "../../services/ApiService";
 import { API_CONFIG } from "../../config";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
 const MENU = [
   { name: "Explore",    path: "/",         icon: Compass  },
@@ -23,11 +24,6 @@ const LIBRARY = [
   { name: "Local Files",path: "/local?tab=local",      icon: HardDrive},
 ];
 
-const PLAYLISTS = [
-  { name: "Design Flow",    path: "/library", icon: ListMusic  },
-  { name: "Best of 2024",   path: "/library", icon: ListMusic  },
-  { name: "Late Night",     path: "/library", icon: ListMusic  },
-];
 
 function SectionLabel({ children, collapsed }) {
   if (collapsed) return <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "30px 16px 16px" }} />;
@@ -74,7 +70,12 @@ function NavItem({ item, onNavigate, collapsed }) {
 export default function Sidebar({ onNavigate, collapsed }) {
   const { user } = useUser();
   const { setCurrentSongId, setQueueUpdated } = usePlayer();
-  const [recent, setRecent] = useState([]);
+  const navigate = useNavigate();
+  const [recent,    setRecent]    = useState([]);
+  const [playlists, setPlaylists] = useState([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName,    setNewName]    = useState("");
+  const [creating,   setCreating]   = useState(false);
 
   const playSong = async (id) => {
     if (!user?.email) return;
@@ -87,11 +88,29 @@ export default function Sidebar({ onNavigate, collapsed }) {
 
   useEffect(() => {
     if (!collapsed && user?.email) {
-       http.get("/auth/play-history")
-         .then(res => setRecent(res.data.slice(0, 5)))
-         .catch(() => {});
+      http.get("/auth/play-history")
+        .then(res => setRecent(res.data.slice(0, 5)))
+        .catch(() => {});
+      http.get("/auth/playlists")
+        .then(res => setPlaylists(res.data || []))
+        .catch(() => {});
     }
   }, [collapsed, user?.email]);
+
+  const createPlaylist = async (e) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const r = await http.post("/auth/playlists", { name: newName.trim() });
+      setPlaylists(prev => [r.data, ...prev]);
+      setNewName(""); setShowCreate(false);
+      toast.success("Playlist created");
+      navigate(`/playlist/${r.data.id}`);
+      onNavigate?.();
+    } catch { toast.error("Failed to create"); }
+    finally { setCreating(false); }
+  };
 
   return (
     <div style={{ 
@@ -143,31 +162,69 @@ export default function Sidebar({ onNavigate, collapsed }) {
 
         <SectionLabel collapsed={collapsed}>Playlists</SectionLabel>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {PLAYLISTS.map(item => <NavItem key={item.name} item={item} onNavigate={onNavigate} collapsed={collapsed} />)}
+          {!collapsed && playlists.map(pl => (
+            <Link key={pl.id} to={`/playlist/${pl.id}`} onClick={onNavigate} style={{ textDecoration: "none", display: "block", padding: "0 12px" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", color: "#fff", fontSize: 12, fontWeight: 700, textTransform: "uppercase", cursor: "pointer", transition: "color .1s", borderRadius: 4 }}
+                onMouseEnter={e => e.currentTarget.style.color = "#CCFF00"}
+                onMouseLeave={e => e.currentTarget.style.color = "#fff"}
+              >
+                <ListMusic size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.name}</span>
+                <span style={{ marginLeft: "auto", fontSize: 9, opacity: 0.35, flexShrink: 0 }}>{pl.songCount ?? 0}</span>
+              </div>
+            </Link>
+          ))}
+
+          {collapsed && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
+              <Link to="/library?tab=playlists" onClick={onNavigate} style={{ color: "rgba(255,255,255,0.4)", display: "flex" }} title="Playlists">
+                <ListMusic size={18} />
+              </Link>
+            </div>
+          )}
+
           {!collapsed && (
-            <button style={{ 
-              marginTop: 10, margin: "10px 12px 0", padding: "12px",
-              background: "transparent", border: "2px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.5)", fontWeight: 900, textTransform: "uppercase", 
-              fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-              justifyContent: "center", transition: "0.2s"
-            }} onMouseEnter={e => { e.currentTarget.style.borderColor = "#CCFF00"; e.currentTarget.style.color = "#CCFF00"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}>
-              <PlusCircle size={12} /> New Playlist
-            </button>
+            <>
+              <AnimatePresence>
+                {showCreate && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                    style={{ overflow: "hidden", padding: "4px 12px" }}
+                  >
+                    <form onSubmit={createPlaylist} style={{ display: "flex", gap: 6 }}>
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        onKeyDown={e => e.key === "Escape" && setShowCreate(false)}
+                        placeholder="Playlist name…"
+                        style={{ flex: 1, padding: "7px 10px", borderRadius: 6, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                      />
+                      <button type="submit" disabled={!newName.trim() || creating} style={{ padding: "7px 10px", borderRadius: 6, border: "none", background: "#CCFF00", color: "#000", fontSize: 11, fontWeight: 900, cursor: "pointer", opacity: newName.trim() ? 1 : 0.5 }}>
+                        {creating ? "…" : "OK"}
+                      </button>
+                      <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "7px 8px", borderRadius: 6, border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                        <X size={12} />
+                      </button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <button
+                onClick={() => setShowCreate(p => !p)}
+                style={{ margin: "6px 12px 0", padding: "10px 12px", background: "transparent", border: "2px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontWeight: 900, textTransform: "uppercase", fontSize: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, justifyContent: "center", transition: "0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "#CCFF00"; e.currentTarget.style.color = "#CCFF00"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}
+              >
+                <PlusCircle size={12} /> New Playlist
+              </button>
+            </>
           )}
         </nav>
       </div>
 
-      {/* ── PREMIUM UPSELL ── */}
-      <div style={{ padding: collapsed ? "12px" : "24px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-         <div style={{ 
-           padding: collapsed ? "10px" : "20px", background: "#CCFF00", color: "#000", 
-           textAlign: "center", fontWeight: 900, textTransform: "uppercase", fontSize: collapsed ? 14 : 11,
-           cursor: "pointer", border: "2px solid #000"
-         }}>
-           {collapsed ? "PR" : "Try Premium ↗"}
-         </div>
-      </div>
     </div>
   );
 }

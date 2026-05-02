@@ -30,6 +30,12 @@ export const PlayerProvider = ({ children }) => {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isLooping,   setIsLooping]   = useState(false);
 
+  // Favourites sync — toggled whenever a favourite is added/removed
+  const [favoritesUpdated, setFavoritesUpdated] = useState(false);
+
+  // Add-to-playlist modal — set to a song object { id, title } to open, null to close
+  const [addToPlaylistSong, setAddToPlaylistSong] = useState(null);
+
   return (
     <PlayerContext.Provider value={{
       audioRef,
@@ -48,6 +54,8 @@ export const PlayerProvider = ({ children }) => {
       song, setSong,
       isShuffling, setIsShuffling,
       isLooping, setIsLooping,
+      favoritesUpdated, setFavoritesUpdated,
+      addToPlaylistSong, setAddToPlaylistSong,
     }}>
       {children}
     </PlayerContext.Provider>

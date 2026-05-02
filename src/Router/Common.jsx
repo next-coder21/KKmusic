@@ -14,6 +14,8 @@ import UpdateProfile from "../components/Sidebar/UpdateProfile";
 import Settings from "../pages/Settings/Settings";
 import Login from "../components/Auth/Login";
 import AdminApp from "../pages/Admin/AdminApp";
+import PlaylistPage from "../pages/Playlist";
+import AddToPlaylistModal from "../components/common/AddToPlaylistModal";
 import { useUser } from "../context/UserContext";
 import ErrorBoundary from "../components/common/ErrorBoundary";
 import { PlayerProvider, usePlayer } from "../context/PlayerContext";
@@ -103,6 +105,7 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
                 <Route path="/favorites"      element={<PrivateRoute><Favorites /></PrivateRoute>} />
                 <Route path="/update-profile" element={<PrivateRoute><UpdateProfile /></PrivateRoute>} />
                 <Route path="/settings"       element={<PrivateRoute><Settings /></PrivateRoute>} />
+                <Route path="/playlist/:id"   element={<PrivateRoute><PlaylistPage /></PrivateRoute>} />
                 <Route path="*"               element={<Navigate to="/" replace />} />
               </Routes>
             </ErrorBoundary>
@@ -153,6 +156,7 @@ function AppLayout({ mobileSidebarOpen, setMobileSidebarOpen }) {
       )}
 
       <MobileNav />
+      <AddToPlaylistModal />
     </div>
   );
 }

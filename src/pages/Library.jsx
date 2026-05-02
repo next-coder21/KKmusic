@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser }   from "../context/UserContext";
 import { usePlayer } from "../context/PlayerContext";
 import { Music, Heart, Clock, Plus, Share2, Trash2, Globe, Lock, Library as LibraryIcon } from "lucide-react";
@@ -25,6 +25,7 @@ const Bone = ({ w="100%", h=14, r=6 }) => <div className="bone" style={{ width:w
 export default function Library() {
   const { user } = useUser();
   const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
+  const navigate = useNavigate();
   const email = user?.email;
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -173,7 +174,11 @@ export default function Library() {
                   <Reorder.Group axis="y" values={playlists} onReorder={setPlaylists} style={{ display:"flex",flexDirection:"column",gap:4,listStyle:"none",padding:0,margin:0 }}>
                     {playlists.map(p => (
                       <Reorder.Item key={p.id} value={p} style={{ listStyle:"none" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,background:"var(--bg-card)",border:"1px solid var(--border)",cursor:"grab" }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,background:"var(--bg-card)",border:"1px solid var(--border)",cursor:"grab" }}
+                          onClick={() => navigate(`/playlist/${p.id}`)}
+                          onMouseEnter={e => e.currentTarget.style.borderColor="var(--accent)"}
+                          onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
+                        >
                           <div style={{ width:48,height:48,borderRadius:8,background:"var(--accent-soft)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
                             <Music size={18} style={{ color:"var(--accent)" }}/>
                           </div>

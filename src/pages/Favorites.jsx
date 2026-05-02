@@ -9,7 +9,7 @@ import { Play, Heart, Clock, MoreHorizontal } from "lucide-react";
 
 export default function Favorites() {
   const { user } = useUser();
-  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying } = usePlayer();
+  const { setCurrentSongId, setQueueUpdated, setUserStarted, setIsPlaying, favoritesUpdated } = usePlayer();
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,12 +17,19 @@ export default function Favorites() {
     if (!user?.email) return;
     const load = async () => {
       try {
-        const res = await axios.get(`${API_CONFIG.MUSIC_URL}/favorites/${user.email}`);
-        setSongs(res.data || []);
+        setLoading(true);
+        const res = await http.get("/auth/favourites");
+        const ids = res.data.favourites || [];
+        if (!ids.length) { setSongs([]); return; }
+        const detailed = await Promise.all(ids.map(async id => {
+          try { const s = await axios.get(`${API_CONFIG.MUSIC_URL}/songs/${id}`); return { id, ...s.data }; }
+          catch { return null; }
+        }));
+        setSongs(detailed.filter(Boolean));
       } catch {} finally { setLoading(false); }
     };
     load();
-  }, [user]);
+  }, [user, favoritesUpdated]);
 
   const playSong = async (id) => {
     try {
@@ -67,7 +74,7 @@ export default function Favorites() {
                       <p style={{ fontWeight: 800, opacity: 0.4, fontSize: 10, margin: 0 }}>{s.artist_name}</p>
                    </div>
                    <span style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11, opacity: 0.5 }}>{s.album_name || "Single"}</span>
-                   <span style={{ fontWeight: 800, fontSize: 12, opacity: 0.4 }}>3:45</span>
+                   <span style={{ fontWeight: 800, fontSize: 12, opacity: 0.4 }}>{s.duration_seconds ? `${Math.floor(s.duration_seconds/60)}:${String(Math.floor(s.duration_seconds%60)).padStart(2,'0')}` : '--:--'}</span>
                    <Heart size={14} fill="#000" />
                 </div>
              ))}

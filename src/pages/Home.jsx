@@ -139,7 +139,11 @@ export default function Home() {
 
   // Logic: Sort by play_count for trending
   const sortedSongs = useMemo(() => {
-    return [...songs].sort((a, b) => (b.play_count || 0) - (a.play_count || 0)).map(songDefaults);
+    const seen = new Set();
+    return [...songs]
+      .filter(s => { const id = s.id ?? s._id; if (seen.has(id)) return false; seen.add(id); return true; })
+      .sort((a, b) => (b.play_count || 0) - (a.play_count || 0))
+      .map(songDefaults);
   }, [songs]);
 
   const trendingSongs = sortedSongs.slice(0, 5);
@@ -155,7 +159,16 @@ export default function Home() {
 
   // Daily Discovery — user's recently played songs; fallback to top songs
   const mixSongs = useMemo(() => {
-    if (history.length > 0) return history.slice(0, 6).map(songDefaults);
+    if (history.length > 0) {
+      const seen = new Set();
+      const unique = history.filter(s => {
+        const id = s.id ?? s._id;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      return unique.slice(0, 6).map(songDefaults);
+    }
     return sortedSongs.slice(0, 6);
   }, [history, sortedSongs]);
 

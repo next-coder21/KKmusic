@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FiMusic, FiSearch, FiPlay, FiPause, FiSkipBack, FiSkipForward,
-  FiVolume2, FiVolumeX, FiLoader, FiSave, FiDownload, FiGlobe,
-  FiChevronRight, FiZap, FiEdit3, FiCheck, FiX, FiClock
+  FiLoader, FiSave, FiDownload, FiGlobe, FiChevronRight, FiZap,
+  FiEdit3, FiX, FiClock, FiAlignLeft, FiCheck, FiWifi, FiWifiOff,
+  FiChevronDown, FiChevronUp
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { Card, PageHeader, Btn, Tag, Cover } from './AdminUI';
 import { API_CONFIG } from '../../config';
 import { songDefaults } from '../../utils/songUtils';
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
 const iStyle = {
   width: '100%', background: '#0a0a0a', border: '1px solid #1f1f1f', borderRadius: 8,
   padding: '8px 12px', color: '#f9fafb', fontSize: 13, outline: 'none',
@@ -19,22 +21,31 @@ const iStyle = {
 const LANGUAGES = [
   { code: '', label: 'Auto Detect' },
   { code: 'ta', label: 'Tamil' },
+  { code: 'ta-en', label: 'Tanglish (Tamil + English)' },
   { code: 'hi', label: 'Hindi' },
-  { code: 'te', label: 'Telugu' },
+  { code: 'hi-en', label: 'Hinglish (Hindi + English)' },
   { code: 'en', label: 'English' },
+  { code: 'te', label: 'Telugu' },
   { code: 'ml', label: 'Malayalam' },
   { code: 'kn', label: 'Kannada' },
+  { code: 'bn', label: 'Bengali' },
   { code: 'ko', label: 'Korean' },
   { code: 'ja', label: 'Japanese' },
+  { code: 'zh', label: 'Chinese' },
   { code: 'es', label: 'Spanish' },
   { code: 'fr', label: 'French' },
   { code: 'ar', label: 'Arabic' },
   { code: 'pt', label: 'Portuguese' },
   { code: 'de', label: 'German' },
   { code: 'ru', label: 'Russian' },
-  { code: 'zh', label: 'Chinese' },
   { code: 'tr', label: 'Turkish' },
-  { code: 'bn', label: 'Bengali' },
+];
+
+const GENERATION_STEPS = [
+  { key: 'download', label: 'Downloading audio' },
+  { key: 'demucs', label: 'Isolating vocals (Demucs)' },
+  { key: 'whisper', label: 'Transcribing with Whisper' },
+  { key: 'build', label: 'Building LRC' },
 ];
 
 const fmt = (s) => {
@@ -44,34 +55,32 @@ const fmt = (s) => {
   return `${m}:${String(sec).padStart(2, '0')}`;
 };
 
-// ─── Song Selector (Left Panel) ───────────────────────────────────────────────
+// ─── Song Selector ─────────────────────────────────────────────────────────────
+
 const SongSelector = ({ songs, loading, selected, onSelect, search, setSearch }) => (
   <div style={{
-    width: 280, minWidth: 280, background: '#0a0a0a', borderRight: '1px solid #151515',
+    width: 272, minWidth: 272, background: '#0a0a0a', borderRight: '1px solid #151515',
     display: 'flex', flexDirection: 'column', height: '100%', borderRadius: '12px 0 0 12px',
     overflow: 'hidden'
   }}>
-    {/* Search */}
-    <div style={{ padding: 12, borderBottom: '1px solid #151515' }}>
+    <div style={{ padding: '12px 10px 10px', borderBottom: '1px solid #151515' }}>
       <div style={{ position: 'relative' }}>
-        <FiSearch size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#374151' }} />
+        <FiSearch size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#374151' }} />
         <input
           value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search songs..."
-          style={{ ...iStyle, paddingLeft: 30, fontSize: 12 }}
+          placeholder="Search songs…"
+          style={{ ...iStyle, paddingLeft: 28, fontSize: 12 }}
           onFocus={e => e.target.style.borderColor = '#ec4899'}
           onBlur={e => e.target.style.borderColor = '#1f1f1f'}
         />
       </div>
-      <p style={{ margin: '8px 0 0', fontSize: 10, color: '#374151', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>
+      <p style={{ margin: '7px 0 0', fontSize: 10, color: '#2d2d2d', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>
         {songs.length} tracks
       </p>
     </div>
-
-    {/* Song List */}
     <div style={{ flex: 1, overflowY: 'auto', padding: '4px 6px' }}>
       {loading ? (
-        <div style={{ padding: 20, textAlign: 'center', color: '#374151', fontSize: 12 }}>Loading songs...</div>
+        <div style={{ padding: 20, textAlign: 'center', color: '#374151', fontSize: 12 }}>Loading songs…</div>
       ) : songs.length === 0 ? (
         <div style={{ padding: 20, textAlign: 'center', color: '#374151', fontSize: 12 }}>No songs found</div>
       ) : songs.map(raw => {
@@ -80,29 +89,25 @@ const SongSelector = ({ songs, loading, selected, onSelect, search, setSearch })
         return (
           <div key={s.id} onClick={() => onSelect(raw)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-              borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
+              display: 'flex', alignItems: 'center', gap: 9, padding: '7px 9px',
+              borderRadius: 8, cursor: 'pointer', transition: 'all .13s',
               background: isActive ? 'rgba(236,72,153,.1)' : 'transparent',
               border: `1px solid ${isActive ? 'rgba(236,72,153,.2)' : 'transparent'}`,
               marginBottom: 2,
             }}
             onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#111'; }}
-            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? 'rgba(236,72,153,.1)' : 'transparent'; }}
+            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
           >
-            <Cover src={s.cover_url} size={36} radius={6} fallback={<FiMusic size={13} style={{ color: '#374151' }} />} />
+            <Cover src={s.cover_url} size={34} radius={6} fallback={<FiMusic size={12} style={{ color: '#374151' }} />} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{
-                margin: 0, fontSize: 12, fontWeight: 600,
-                color: isActive ? '#f9fafb' : '#9ca3af',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-              }}>{s.title}</p>
-              <p style={{
-                margin: '2px 0 0', fontSize: 10,
-                color: isActive ? '#6b7280' : '#374151',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-              }}>{s.artist_name || 'Unknown Artist'}</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: isActive ? '#f9fafb' : '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s.title}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 10, color: isActive ? '#6b7280' : '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s.artist_name || 'Unknown Artist'}
+              </p>
             </div>
-            {isActive && <FiChevronRight size={12} style={{ color: '#ec4899', flexShrink: 0 }} />}
+            {isActive && <FiChevronRight size={11} style={{ color: '#ec4899', flexShrink: 0 }} />}
           </div>
         );
       })}
@@ -110,10 +115,50 @@ const SongSelector = ({ songs, loading, selected, onSelect, search, setSearch })
   </div>
 );
 
+// ─── Generation Steps Indicator ────────────────────────────────────────────────
+
+const StepsIndicator = ({ activeStep }) => (
+  <div style={{ width: '100%', maxWidth: 300, marginBottom: 20 }}>
+    {GENERATION_STEPS.map((step, i) => {
+      const isDone = i < activeStep;
+      const isActive = i === activeStep;
+      return (
+        <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <div style={{
+            width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: isDone ? 'rgba(16,185,129,.15)' : isActive ? 'rgba(236,72,153,.12)' : 'rgba(255,255,255,.03)',
+            border: `1px solid ${isDone ? 'rgba(16,185,129,.4)' : isActive ? 'rgba(236,72,153,.4)' : '#1f1f1f'}`,
+            transition: 'all .3s',
+          }}>
+            {isDone ? (
+              <FiCheck size={10} style={{ color: '#10b981' }} />
+            ) : isActive ? (
+              <div style={{ width: 8, height: 8, borderRadius: '50%', border: '1.5px solid #374151', borderTop: '1.5px solid #ec4899', animation: 'spin 0.8s linear infinite' }} />
+            ) : null}
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: isActive ? 600 : 400,
+            color: isDone ? '#10b981' : isActive ? '#ec4899' : '#374151',
+            transition: 'color .3s',
+          }}>
+            {step.label}
+          </span>
+        </div>
+      );
+    })}
+  </div>
+);
+
 // ─── Audio Player (Center Panel) ──────────────────────────────────────────────
-const AudioPlayer = ({ song, language, setLanguage, onGetLyrics, generating, audioRef, isPlaying, setIsPlaying, currentTime, duration }) => {
+
+const AudioPlayer = ({
+  song, language, setLanguage, onGetLyrics, generating,
+  audioRef, isPlaying, setIsPlaying, currentTime, duration,
+  demucsStatus, userLyrics, setUserLyrics, genStep,
+}) => {
   const s = song ? songDefaults(song) : null;
-  const progressRef = useRef(null);
+  const [showLyricsInput, setShowLyricsInput] = useState(false);
 
   const handleSeek = (e) => {
     if (!audioRef.current || !duration) return;
@@ -139,157 +184,207 @@ const AudioPlayer = ({ song, language, setLanguage, onGetLyrics, generating, aud
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '24px 28px', background: '#080808', justifyContent: 'center',
-      minHeight: 0
+      padding: '20px 24px', background: '#080808', justifyContent: 'center',
+      minHeight: 0, overflowY: 'auto',
     }}>
-
       {!song ? (
-        <div style={{ textAlign: 'center', maxWidth: 320 }}>
+        <div style={{ textAlign: 'center', maxWidth: 300 }}>
           <div style={{
-            width: 72, height: 72, borderRadius: 16, margin: '0 auto 18px',
-            background: 'linear-gradient(135deg, rgba(236,72,153,.1), rgba(99,102,241,.1))',
-            border: '1px solid rgba(236,72,153,.15)',
+            width: 68, height: 68, borderRadius: 16, margin: '0 auto 16px',
+            background: 'linear-gradient(135deg, rgba(236,72,153,.08), rgba(99,102,241,.08))',
+            border: '1px solid rgba(236,72,153,.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <FiMusic size={28} style={{ color: '#4b5563' }} />
+            <FiMusic size={26} style={{ color: '#3a3a3a' }} />
           </div>
-          <p style={{ fontSize: 16, fontWeight: 700, color: '#4b5563', margin: '0 0 6px', fontFamily: "'Syne', sans-serif" }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#3a3a3a', margin: '0 0 6px', fontFamily: "'Syne', sans-serif" }}>
             Select a Song
           </p>
-          <p style={{ fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: '#2d2d2d', margin: 0, lineHeight: 1.6 }}>
             Choose a track from the left panel to start generating lyrics with AI
           </p>
         </div>
       ) : (
         <>
+          {/* Demucs status badge */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5, marginBottom: 16,
+            padding: '4px 10px', borderRadius: 20,
+            background: demucsStatus === 'online'
+              ? 'rgba(16,185,129,.08)' : demucsStatus === 'offline'
+              ? 'rgba(239,68,68,.06)' : 'rgba(255,255,255,.03)',
+            border: `1px solid ${demucsStatus === 'online' ? 'rgba(16,185,129,.25)' : demucsStatus === 'offline' ? 'rgba(239,68,68,.2)' : '#1a1a1a'}`,
+          }}>
+            {demucsStatus === 'online' ? (
+              <FiWifi size={10} style={{ color: '#10b981' }} />
+            ) : demucsStatus === 'offline' ? (
+              <FiWifiOff size={10} style={{ color: '#ef4444' }} />
+            ) : (
+              <div style={{ width: 8, height: 8, borderRadius: '50%', border: '1.5px solid #374151', borderTop: '1.5px solid #6b7280', animation: 'spin 1s linear infinite' }} />
+            )}
+            <span style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '.05em',
+              color: demucsStatus === 'online' ? '#10b981' : demucsStatus === 'offline' ? '#ef4444' : '#374151',
+            }}>
+              {demucsStatus === 'online' ? 'Demucs Ready' : demucsStatus === 'offline' ? 'Demucs Offline' : 'Checking Demucs…'}
+            </span>
+          </div>
+
           {/* Cover Art */}
           <div style={{
-            width: 160, height: 160, borderRadius: 16, overflow: 'hidden',
-            background: '#111', border: '1px solid #1a1a1a', marginBottom: 20,
-            boxShadow: '0 20px 60px rgba(0,0,0,.5)',
-            position: 'relative'
+            width: 148, height: 148, borderRadius: 14, overflow: 'hidden',
+            background: '#111', border: '1px solid #1a1a1a', marginBottom: 18,
+            boxShadow: '0 16px 48px rgba(0,0,0,.5)', position: 'relative'
           }}>
             {s.cover_url ? (
               <img src={s.cover_url} alt={s.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FiMusic size={40} style={{ color: '#222' }} />
+                <FiMusic size={38} style={{ color: '#1a1a1a' }} />
               </div>
             )}
-            {/* Playing glow */}
-            {isPlaying && <div style={{
-              position: 'absolute', inset: -2, borderRadius: 18,
-              border: '2px solid rgba(236,72,153,.4)',
-              animation: 'pulse 2s ease-in-out infinite',
-              pointerEvents: 'none'
-            }} />}
+            {isPlaying && (
+              <div style={{
+                position: 'absolute', inset: -2, borderRadius: 16,
+                border: '2px solid rgba(236,72,153,.35)',
+                animation: 'pulse 2s ease-in-out infinite', pointerEvents: 'none'
+              }} />
+            )}
           </div>
 
           {/* Song Info */}
-          <p style={{
-            margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: '#f9fafb',
-            fontFamily: "'Syne', sans-serif", textAlign: 'center', maxWidth: 300,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-          }}>{s.title}</p>
-          <p style={{ margin: '0 0 20px', fontSize: 12, color: '#4b5563', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 700, color: '#f9fafb', fontFamily: "'Syne', sans-serif", textAlign: 'center', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {s.title}
+          </p>
+          <p style={{ margin: '0 0 18px', fontSize: 12, color: '#4b5563', textAlign: 'center' }}>
             {s.artist_name || 'Unknown Artist'}
           </p>
 
           {/* Progress Bar */}
-          <div style={{ width: '100%', maxWidth: 360, marginBottom: 12 }}>
-            <div ref={progressRef} onClick={handleSeek}
-              style={{
-                height: 4, borderRadius: 2, background: '#1a1a1a', cursor: 'pointer',
-                position: 'relative', overflow: 'hidden'
-              }}>
-              <div style={{
-                height: '100%', borderRadius: 2, width: `${progress}%`,
-                background: 'linear-gradient(90deg, #ec4899, #a855f7)',
-                transition: 'width .1s linear'
-              }} />
+          <div style={{ width: '100%', maxWidth: 340, marginBottom: 10 }}>
+            <div onClick={handleSeek} style={{ height: 4, borderRadius: 2, background: '#1a1a1a', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 2, width: `${progress}%`, background: 'linear-gradient(90deg, #ec4899, #a855f7)', transition: 'width .1s linear' }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
               <span style={{ fontSize: 10, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmt(currentTime)}</span>
               <span style={{ fontSize: 10, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmt(duration)}</span>
             </div>
           </div>
 
           {/* Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
             <button onClick={() => skip(-10)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', transition: 'color .12s', padding: 4 }}
               onMouseEnter={e => e.currentTarget.style.color = '#9ca3af'} onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}>
-              <FiSkipBack size={18} />
+              <FiSkipBack size={17} />
             </button>
             <button onClick={togglePlay}
-              style={{
-                width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg, #ec4899, #6366f1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 20px rgba(236,72,153,.3)',
-                transition: 'transform .12s, box-shadow .12s'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(236,72,153,.4)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(236,72,153,.3)'; }}
+              style={{ width: 46, height: 46, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #ec4899, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 18px rgba(236,72,153,.3)', transition: 'transform .12s, box-shadow .12s' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 26px rgba(236,72,153,.4)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(236,72,153,.3)'; }}
             >
-              {isPlaying ? <FiPause size={20} style={{ color: '#fff' }} /> : <FiPlay size={20} style={{ color: '#fff', marginLeft: 2 }} />}
+              {isPlaying ? <FiPause size={19} style={{ color: '#fff' }} /> : <FiPlay size={19} style={{ color: '#fff', marginLeft: 2 }} />}
             </button>
             <button onClick={() => skip(10)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', transition: 'color .12s', padding: 4 }}
               onMouseEnter={e => e.currentTarget.style.color = '#9ca3af'} onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}>
-              <FiSkipForward size={18} />
+              <FiSkipForward size={17} />
             </button>
           </div>
 
           {/* Language Selector */}
-          <div style={{ marginBottom: 16, width: '100%', maxWidth: 280 }}>
-            <label style={{ fontSize: 10, color: '#4b5563', letterSpacing: '.12em', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-              <FiGlobe size={11} /> Language Hint
+          <div style={{ marginBottom: 12, width: '100%', maxWidth: 280 }}>
+            <label style={{ fontSize: 10, color: '#4b5563', letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 5 }}>
+              <FiGlobe size={10} /> Language Hint
             </label>
             <select value={language} onChange={e => setLanguage(e.target.value)}
               style={{ ...iStyle, fontSize: 12 }}
               onFocus={e => e.target.style.borderColor = '#ec4899'}
               onBlur={e => e.target.style.borderColor = '#1f1f1f'}
             >
-              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}{l.code ? ` (${l.code})` : ''}</option>)}
+              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
             </select>
           </div>
 
-          {/* Get Lyrics Button */}
-          <button onClick={onGetLyrics} disabled={generating}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '12px 28px', borderRadius: 10, border: 'none', cursor: generating ? 'wait' : 'pointer',
-              background: generating ? '#1a1a1a' : 'linear-gradient(135deg, #ec4899, #6366f1)',
-              color: generating ? '#6b7280' : '#fff', fontSize: 14, fontWeight: 700,
-              fontFamily: "'Syne', sans-serif", letterSpacing: '-0.01em',
-              boxShadow: generating ? 'none' : '0 4px 24px rgba(236,72,153,.3)',
-              transition: 'all .2s', width: '100%', maxWidth: 280, justifyContent: 'center'
-            }}
-            onMouseEnter={e => { if (!generating) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(236,72,153,.4)'; } }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = generating ? 'none' : '0 4px 24px rgba(236,72,153,.3)'; }}
-          >
-            {generating ? (
-              <>
-                <div style={{
-                  width: 16, height: 16, border: '2px solid #333', borderTop: '2px solid #ec4899',
-                  borderRadius: '50%', animation: 'spin 0.8s linear infinite'
-                }} />
-                Transcribing...
-              </>
-            ) : (
-              <>
-                <FiZap size={16} />
-                Get Lyrics
-              </>
+          {/* Optional: Paste your own lyrics */}
+          <div style={{ width: '100%', maxWidth: 280, marginBottom: 16 }}>
+            <button
+              onClick={() => setShowLyricsInput(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, background: 'none',
+                border: '1px solid #1f1f1f', borderRadius: 6, cursor: 'pointer',
+                padding: '6px 10px', color: '#4b5563', fontSize: 11, fontWeight: 600,
+                fontFamily: 'inherit', width: '100%', transition: 'all .12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#374151'; e.currentTarget.style.color = '#9ca3af'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#1f1f1f'; e.currentTarget.style.color = '#4b5563'; }}
+            >
+              <FiAlignLeft size={11} />
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                {userLyrics ? 'Lyrics provided (alignment mode)' : 'Paste your own lyrics (optional)'}
+              </span>
+              {showLyricsInput ? <FiChevronUp size={11} /> : <FiChevronDown size={11} />}
+            </button>
+
+            {showLyricsInput && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ padding: '5px 8px', borderRadius: 5, marginBottom: 6, background: 'rgba(99,102,241,.06)', border: '1px solid rgba(99,102,241,.15)', fontSize: 10, color: '#818cf8', lineHeight: 1.5 }}>
+                  Paste lyrics line-by-line. Whisper will timestamp each line.
+                </div>
+                <textarea
+                  value={userLyrics}
+                  onChange={e => setUserLyrics(e.target.value)}
+                  placeholder={"Line one of the song\nLine two of the song\n…"}
+                  rows={5}
+                  style={{ ...iStyle, resize: 'vertical', fontSize: 12, lineHeight: 1.7, borderRadius: 6, fontFamily: "'JetBrains Mono', monospace" }}
+                  onFocus={e => e.target.style.borderColor = '#6366f1'}
+                  onBlur={e => e.target.style.borderColor = '#1f1f1f'}
+                />
+                {userLyrics && (
+                  <button onClick={() => setUserLyrics('')}
+                    style={{ marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#374151', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3, padding: 0 }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#374151'}
+                  >
+                    <FiX size={10} /> Clear lyrics
+                  </button>
+                )}
+              </div>
             )}
-          </button>
+          </div>
+
+          {/* Generation steps or Get Lyrics button */}
+          {generating ? (
+            <div style={{ width: '100%', maxWidth: 280 }}>
+              <StepsIndicator activeStep={genStep} />
+              <div style={{ textAlign: 'center', fontSize: 11, color: '#4b5563', fontStyle: 'italic' }}>
+                {demucsStatus === 'online' ? 'Vocal isolation + transcription in progress…' : 'Transcribing audio…'}
+              </div>
+            </div>
+          ) : (
+            <button onClick={onGetLyrics} disabled={generating}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: 10,
+                border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #ec4899, #6366f1)',
+                color: '#fff', fontSize: 14, fontWeight: 700, fontFamily: "'Syne', sans-serif",
+                letterSpacing: '-0.01em', boxShadow: '0 4px 24px rgba(236,72,153,.3)',
+                transition: 'all .2s', width: '100%', maxWidth: 280, justifyContent: 'center'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(236,72,153,.4)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(236,72,153,.3)'; }}
+            >
+              <FiZap size={16} />
+              {userLyrics ? 'Align Lyrics' : 'Generate Lyrics'}
+            </button>
+          )}
         </>
       )}
     </div>
   );
 };
 
-// ─── LRC parser helper ────────────────────────────────────────────────────────
-const LRC_RE = /^\[(\d{1,2}):(\d{2}(?:[.:]+\d+)?)\]\s?(.*)/;
+// ─── LRC parser ────────────────────────────────────────────────────────────────
+
+const LRC_RE = /^\[(\d{1,2}):(\d{2}(?:[.:]\d+)?)\]\s?(.*)/;
 
 function parseLrcLines(lrcText) {
   if (!lrcText) return [];
@@ -313,6 +408,7 @@ function findActiveLine(parsed, currentTime) {
 }
 
 // ─── Lyrics Editor (Right Panel) ──────────────────────────────────────────────
+
 const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime, isPlaying, audioRef }) => {
   const lineCount = lrc ? lrc.split('\n').filter(Boolean).length : 0;
   const charCount = lrc ? lrc.length : 0;
@@ -320,18 +416,15 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
   const syncScrollRef = useRef(null);
   const activeLineRef = useRef(null);
 
-  // Parse LRC for sync view
   const parsed = React.useMemo(() => parseLrcLines(lrc), [lrc]);
   const activeIdx = findActiveLine(parsed, currentTime);
 
-  // Auto-scroll to active line
   useEffect(() => {
     if (activeLineRef.current && syncScrollRef.current && isPlaying && !editMode) {
       activeLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [activeIdx, isPlaying, editMode]);
 
-  // Seek to timestamp on line click
   const handleLineClick = (time) => {
     if (audioRef?.current && time !== null) {
       audioRef.current.currentTime = time;
@@ -348,76 +441,111 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
       overflow: 'hidden'
     }}>
       {/* Header */}
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid #151515' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid #151515' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#e5e7eb', fontFamily: "'Syne', sans-serif" }}>
+          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#e5e7eb', fontFamily: "'Syne', sans-serif" }}>
             Lyrics Editor
           </h3>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
             {lrc && (
               <button onClick={() => setEditMode(!editMode)}
                 style={{
-                  padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 700,
+                  padding: '3px 9px', borderRadius: 5, fontSize: 10, fontWeight: 700,
                   fontFamily: 'inherit', cursor: 'pointer', transition: 'all .12s',
-                  background: editMode ? 'rgba(99,102,241,.12)' : 'rgba(236,72,153,.12)',
-                  border: `1px solid ${editMode ? 'rgba(99,102,241,.3)' : 'rgba(236,72,153,.3)'}`,
+                  background: editMode ? 'rgba(99,102,241,.1)' : 'rgba(236,72,153,.1)',
+                  border: `1px solid ${editMode ? 'rgba(99,102,241,.3)' : 'rgba(236,72,153,.25)'}`,
                   color: editMode ? '#818cf8' : '#ec4899', letterSpacing: '.04em', textTransform: 'uppercase'
                 }}>
                 {editMode ? 'Sync View' : 'Edit'}
               </button>
             )}
-            {lrcMeta && <Tag color="#2dd4bf">{lrcMeta.language || 'auto'}</Tag>}
+            {lrcMeta?.language && (
+              <span style={{
+                padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                background: lrcMeta.isCodeMixed ? 'rgba(251,191,36,.08)' : 'rgba(45,212,191,.08)',
+                border: `1px solid ${lrcMeta.isCodeMixed ? 'rgba(251,191,36,.3)' : 'rgba(45,212,191,.25)'}`,
+                color: lrcMeta.isCodeMixed ? '#fbbf24' : '#2dd4bf',
+                fontFamily: 'inherit',
+              }}>
+                {lrcMeta.language}{lrcMeta.isCodeMixed ? '+en' : ''}
+              </span>
+            )}
           </div>
         </div>
         {lrcMeta && (
-          <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-            <span style={{ fontSize: 10, color: '#374151' }}>
-              <FiClock size={9} style={{ marginRight: 3 }} />{lrcMeta.wordCount} words
+          <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: '#374151', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <FiClock size={9} />{lrcMeta.wordCount} words
             </span>
             <span style={{ fontSize: 10, color: '#374151' }}>{lineCount} lines</span>
-            <span style={{ fontSize: 10, color: '#374151' }}>{charCount} chars</span>
+            {lrcMeta.lineLimits && (
+              <span style={{ fontSize: 10, color: '#2d2d2d' }} title="Auto-detected words per line">
+                {lrcMeta.lineLimits.MIN_LINE_WORDS}–{lrcMeta.lineLimits.MAX_LINE_WORDS} w/line
+              </span>
+            )}
+            {lrcMeta.demucsUsed && (
+              <span style={{ fontSize: 10, color: '#10b981', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <FiCheck size={9} /> Demucs
+              </span>
+            )}
+            {lrcMeta.quality != null && (
+              <span
+                style={{
+                  fontSize: 10,
+                  color:
+                    lrcMeta.quality >= 0.7 ? '#10b981'
+                    : lrcMeta.quality >= 0.5 ? '#fbbf24'
+                    : '#ef4444',
+                }}
+                title="Transcription confidence score"
+              >
+                {Math.round(lrcMeta.quality * 100)}% confident
+              </span>
+            )}
+            {lrcMeta.passes > 1 && (
+              <span style={{ fontSize: 10, color: '#a78bfa' }} title="Two-pass refinement was used">
+                {lrcMeta.passes}-pass
+              </span>
+            )}
+            {lrcMeta.vocalRegions > 0 && (
+              <span style={{ fontSize: 10, color: '#2d2d2d' }} title="Distinct vocal regions detected">
+                {lrcMeta.vocalRegions} region{lrcMeta.vocalRegions !== 1 ? 's' : ''}
+              </span>
+            )}
+            {lrcMeta.unmatched > 0 && (
+              <span style={{ fontSize: 10, color: '#f59e0b' }}>
+                {lrcMeta.unmatched} unmatched
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {/* Editor / Sync View */}
-      <div style={{ flex: 1, padding: '12px 12px 0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {!lrc && !song ? (
+      {/* Content */}
+      <div style={{ flex: 1, padding: '10px 10px 0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {!lrc ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-            <FiEdit3 size={28} style={{ color: '#1f1f1f', marginBottom: 12 }} />
-            <p style={{ fontSize: 12, color: '#374151', textAlign: 'center', lineHeight: 1.6 }}>
-              Generated lyrics will appear here.<br />You can edit them before saving.
+            <FiEdit3 size={26} style={{ color: '#1a1a1a', marginBottom: 12 }} />
+            <p style={{ fontSize: 12, color: '#2d2d2d', textAlign: 'center', lineHeight: 1.7 }}>
+              Generated lyrics will appear here.<br />Click a line to seek, edit before saving.
             </p>
           </div>
         ) : editMode ? (
-          /* ── Edit Mode (textarea) ── */
           <>
-            <div style={{
-              padding: '6px 10px', borderRadius: 6, marginBottom: 8,
-              background: 'rgba(99,102,241,.06)', border: '1px solid rgba(99,102,241,.15)',
-              fontSize: 10, color: '#818cf8', lineHeight: 1.4
-            }}>
-              <strong>Edit Mode</strong> — Modify timestamps and lyrics directly.
+            <div style={{ padding: '5px 9px', borderRadius: 6, marginBottom: 8, background: 'rgba(99,102,241,.05)', border: '1px solid rgba(99,102,241,.12)', fontSize: 10, color: '#818cf8', lineHeight: 1.4 }}>
+              <strong>Edit Mode</strong> — Modify timestamps and lyrics directly. Format: <code>[MM:SS.cc] Text</code>
             </div>
             <textarea
               value={lrc || ''}
               onChange={e => setLrc(e.target.value)}
-              style={{
-                ...iStyle, flex: 1, resize: 'none', lineHeight: 1.9,
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 12,
-                borderRadius: 8, minHeight: 0
-              }}
+              style={{ ...iStyle, flex: 1, resize: 'none', lineHeight: 1.9, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 12, borderRadius: 8, minHeight: 0 }}
               onFocus={e => e.target.style.borderColor = '#6366f1'}
               onBlur={e => e.target.style.borderColor = '#1f1f1f'}
-              placeholder="[00:12.50] First line of lyrics&#10;[00:16.00] Second line..."
+              placeholder="[00:12.50] First line&#10;[00:16.00] Second line…"
             />
           </>
         ) : (
-          /* ── Sync View (highlighted lyrics) ── */
-          <div ref={syncScrollRef} style={{
-            flex: 1, overflowY: 'auto', borderRadius: 8,
-            background: '#070707', border: '1px solid #1a1a1a', padding: '10px 0',
-          }}>
+          <div ref={syncScrollRef} style={{ flex: 1, overflowY: 'auto', borderRadius: 8, background: '#070707', border: '1px solid #1a1a1a', padding: '8px 0' }}>
             {parsed.map((line, i) => {
               const isActive = i === activeIdx;
               const isMusicLine = isMusic(line.text);
@@ -428,56 +556,34 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
                   ref={isActive ? activeLineRef : null}
                   onClick={() => handleLineClick(line.time)}
                   style={{
-                    padding: '6px 14px',
-                    cursor: line.time !== null ? 'pointer' : 'default',
+                    padding: '5px 13px', cursor: line.time !== null ? 'pointer' : 'default',
                     transition: 'all .2s ease',
-                    background: isActive
-                      ? 'linear-gradient(90deg, rgba(236,72,153,.12), rgba(99,102,241,.08))'
-                      : 'transparent',
+                    background: isActive ? 'linear-gradient(90deg, rgba(236,72,153,.1), rgba(99,102,241,.06))' : 'transparent',
                     borderLeft: isActive ? '3px solid #ec4899' : '3px solid transparent',
                     position: 'relative',
                   }}
                 >
-                  {/* Timestamp */}
                   {line.time !== null && (
-                    <span style={{
-                      fontSize: 9, fontFamily: "'JetBrains Mono', monospace",
-                      color: isActive ? '#ec4899' : '#2a2a2a',
-                      fontWeight: 600, letterSpacing: '.03em',
-                      transition: 'color .2s',
-                      marginRight: 8,
-                    }}>
+                    <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: isActive ? '#ec4899' : '#222', fontWeight: 600, letterSpacing: '.03em', transition: 'color .2s', marginRight: 7 }}>
                       {fmt(line.time)}
                     </span>
                   )}
-                  {/* Lyric text */}
                   <span style={{
                     fontSize: isMusicLine ? 11 : 13,
-                    fontWeight: isActive ? 700 : (isPast ? 400 : 500),
+                    fontWeight: isActive ? 700 : isPast ? 400 : 500,
                     color: isMusicLine
-                      ? (isActive ? '#a78bfa' : '#2d2d3d')
-                      : isActive
-                        ? '#f9fafb'
-                        : isPast
-                          ? '#3a3a3a'
-                          : '#6b7280',
+                      ? (isActive ? '#a78bfa' : '#252535')
+                      : isActive ? '#f9fafb' : isPast ? '#333' : '#6b7280',
                     fontStyle: isMusicLine ? 'italic' : 'normal',
                     transition: 'all .25s ease',
                     letterSpacing: isActive ? '0.01em' : '0',
                   }}>
                     {line.text}
                   </span>
-                  {/* Playing indicator */}
                   {isActive && isPlaying && (
-                    <span style={{
-                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                      display: 'flex', gap: 2, alignItems: 'flex-end', height: 12
-                    }}>
+                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 2, alignItems: 'flex-end', height: 12 }}>
                       {[0, 1, 2].map(b => (
-                        <span key={b} style={{
-                          width: 2, borderRadius: 1, background: '#ec4899',
-                          animation: `eqBar 0.6s ease-in-out ${b * 0.15}s infinite alternate`,
-                        }} />
+                        <span key={b} style={{ width: 2, borderRadius: 1, background: '#ec4899', animation: `eqBar 0.6s ease-in-out ${b * 0.15}s infinite alternate` }} />
                       ))}
                     </span>
                   )}
@@ -488,24 +594,16 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
         )}
       </div>
 
-      {/* Footer Actions */}
-      <div style={{
-        padding: '12px 14px', borderTop: '1px solid #151515',
-        display: 'flex', gap: 8, alignItems: 'center'
-      }}>
+      {/* Footer */}
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #151515', display: 'flex', gap: 7, alignItems: 'center' }}>
         {lrc && (
           <>
             <button onClick={() => setLrc('')}
-              style={{
-                padding: '7px 12px', borderRadius: 6, background: 'transparent',
-                border: '1px solid #1f1f1f', cursor: 'pointer', color: '#4b5563',
-                fontSize: 11, fontWeight: 600, fontFamily: 'inherit', transition: 'all .12s',
-                display: 'flex', alignItems: 'center', gap: 5
-              }}
+              style={{ padding: '6px 11px', borderRadius: 6, background: 'transparent', border: '1px solid #1f1f1f', cursor: 'pointer', color: '#4b5563', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', transition: 'all .12s', display: 'flex', alignItems: 'center', gap: 4 }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#1f1f1f'; e.currentTarget.style.color = '#4b5563'; }}
             >
-              <FiX size={12} /> Clear
+              <FiX size={11} /> Clear
             </button>
             <button onClick={() => {
               const blob = new Blob([lrc], { type: 'text/plain' });
@@ -515,41 +613,33 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
               a.download = `${song?.title || 'lyrics'}.lrc`;
               a.click();
               URL.revokeObjectURL(url);
-              toast.success('LRC file downloaded');
+              toast.success('LRC downloaded');
             }}
-              style={{
-                padding: '7px 12px', borderRadius: 6, background: 'transparent',
-                border: '1px solid #1f1f1f', cursor: 'pointer', color: '#4b5563',
-                fontSize: 11, fontWeight: 600, fontFamily: 'inherit', transition: 'all .12s',
-                display: 'flex', alignItems: 'center', gap: 5
-              }}
+              style={{ padding: '6px 11px', borderRadius: 6, background: 'transparent', border: '1px solid #1f1f1f', cursor: 'pointer', color: '#4b5563', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', transition: 'all .12s', display: 'flex', alignItems: 'center', gap: 4 }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#1f1f1f'; e.currentTarget.style.color = '#4b5563'; }}
             >
-              <FiDownload size={12} /> .LRC
+              <FiDownload size={11} /> .LRC
             </button>
             <div style={{ flex: 1 }} />
             <button onClick={onSave} disabled={saving || !song}
               style={{
-                padding: '8px 18px', borderRadius: 8, border: 'none', cursor: saving ? 'wait' : 'pointer',
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s',
-                boxShadow: '0 2px 12px rgba(16,185,129,.25)',
-                opacity: (saving || !song) ? 0.5 : 1
+                padding: '7px 16px', borderRadius: 7, border: 'none', cursor: saving ? 'wait' : 'pointer',
+                background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
+                fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s',
+                boxShadow: '0 2px 12px rgba(16,185,129,.2)', opacity: (saving || !song) ? 0.5 : 1
               }}
-              onMouseEnter={e => { if (!saving && song) e.currentTarget.style.boxShadow = '0 4px 20px rgba(16,185,129,.4)'; }}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(16,185,129,.25)'}
+              onMouseEnter={e => { if (!saving && song) e.currentTarget.style.boxShadow = '0 4px 18px rgba(16,185,129,.35)'; }}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(16,185,129,.2)'}
             >
               {saving ? (
                 <>
-                  <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                  Saving...
+                  <div style={{ width: 11, height: 11, border: '2px solid rgba(255,255,255,.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  Saving…
                 </>
               ) : (
-                <>
-                  <FiSave size={13} /> Save to Song
-                </>
+                <><FiSave size={12} /> Save to Song</>
               )}
             </button>
           </>
@@ -562,24 +652,39 @@ const LyricsEditor = ({ lrc, setLrc, song, onSave, saving, lrcMeta, currentTime,
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main Component
 // ═══════════════════════════════════════════════════════════════════════════════
+
 const AdminLyricsCreator = ({ api }) => {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [language, setLanguage] = useState('');
+  const [userLyrics, setUserLyrics] = useState('');
 
-  // Player state
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // Lyrics state
   const [lrc, setLrc] = useState('');
   const [lrcMeta, setLrcMeta] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [genStep, setGenStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [demucsStatus, setDemucsStatus] = useState('checking');
+
+  // Check Demucs health on mount and when a song is selected
+  const checkDemucs = useCallback(async () => {
+    setDemucsStatus('checking');
+    try {
+      await fetch('http://127.0.0.1:8005/health', { signal: AbortSignal.timeout(2500) });
+      setDemucsStatus('online');
+    } catch {
+      setDemucsStatus('offline');
+    }
+  }, []);
+
+  useEffect(() => { checkDemucs(); }, [checkDemucs]);
 
   // Fetch songs
   useEffect(() => {
@@ -593,7 +698,6 @@ const AdminLyricsCreator = ({ api }) => {
     })();
   }, [api]);
 
-  // Filter songs
   const filtered = songs.filter(s => {
     const q = search.toLowerCase();
     return !q || s.title?.toLowerCase().includes(q) || s.artist_name?.toLowerCase().includes(q);
@@ -603,19 +707,16 @@ const AdminLyricsCreator = ({ api }) => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
     const onTime = () => setCurrentTime(audio.currentTime);
     const onDur = () => setDuration(audio.duration);
     const onEnd = () => setIsPlaying(false);
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
-
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('loadedmetadata', onDur);
     audio.addEventListener('ended', onEnd);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
-
     return () => {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('loadedmetadata', onDur);
@@ -625,50 +726,79 @@ const AdminLyricsCreator = ({ api }) => {
     };
   }, [selected]);
 
-  // Select song
   const handleSelect = useCallback((song) => {
     setSelected(song);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-    // Don't clear lyrics — user might want to compare
   }, []);
 
-  // Get Lyrics
+  // Simulate step progression during generation
+  const startStepTimer = useCallback((hasDemucs) => {
+    setGenStep(0);
+    const timings = hasDemucs
+      ? [1200, 3000, 8000]   // download → demucs → whisper
+      : [1200, 1400, 6000];  // download → skip demucs → whisper
+    let step = 0;
+    const timers = [];
+    timings.forEach((delay, i) => {
+      timers.push(setTimeout(() => setGenStep(i + 1), delay));
+    });
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   const handleGetLyrics = async () => {
     if (!selected) return;
     setGenerating(true);
     setLrc('');
     setLrcMeta(null);
 
+    const cleanup = startStepTimer(demucsStatus === 'online');
+
     try {
       const { data } = await api.post('/lyricgen', {
         songId: selected.id,
         language: language || undefined,
+        lyrics: userLyrics.trim() || undefined,
       });
 
+      setGenStep(4); // all done
       setLrc(data.lrc || '');
       setLrcMeta({
         language: data.language,
+        isCodeMixed: data.isCodeMixed,
+        demucsUsed: data.demucsUsed,
         wordCount: data.wordCount,
         unmatched: data.unmatched || 0,
+        lineLimits: data.lineLimits,
+        quality: data.quality,
+        passes: data.passes,
+        vocalRegions: data.vocalRegions,
       });
-      toast.success(`Lyrics generated! (${data.wordCount} words, ${data.language})`);
+
+      const modeBadge = data.demucsUsed ? ' · Demucs' : '';
+      const codeBadge = data.isCodeMixed ? ` · ${data.language}+en` : ` · ${data.language}`;
+      const qualityBadge = data.quality != null ? ` · ${Math.round(data.quality * 100)}% quality` : '';
+      const passesBadge = data.passes > 1 ? ` · ${data.passes} passes` : '';
+      toast.success(`Done — ${data.wordCount} words${codeBadge}${modeBadge}${qualityBadge}${passesBadge}`);
+
+      // Re-check Demucs status after generation
+      checkDemucs();
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Generation failed';
       toast.error(msg);
     } finally {
+      cleanup();
       setGenerating(false);
     }
   };
 
-  // Save lyrics to song
   const handleSave = async () => {
     if (!selected || !lrc) return;
     setSaving(true);
     try {
       await api.patch(`/songs/${selected.id}`, { lyrics: lrc });
-      toast.success('Lyrics saved to song!');
+      toast.success('Lyrics saved!');
     } catch {
       toast.error('Failed to save lyrics');
     } finally {
@@ -676,77 +806,43 @@ const AdminLyricsCreator = ({ api }) => {
     }
   };
 
-  // Build audio stream URL
   const audioSrc = selected ? `${API_CONFIG.MUSIC_URL}/stream/${selected.id}` : '';
 
   return (
     <div>
       <style>{`
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-        @keyframes pulse { 0%, 100% { opacity: 0.4 } 50% { opacity: 1 } }
-        @keyframes eqBar {
-          0% { height: 3px; }
-          100% { height: 12px; }
-        }
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+        @keyframes pulse { 0%, 100% { opacity: 0.35 } 50% { opacity: 1 } }
+        @keyframes eqBar { 0% { height: 3px } 100% { height: 12px } }
       `}</style>
 
       <PageHeader
         title="Lyrics Creator"
-        subtitle="AI-powered lyrics generation with Groq × Whisper"
+        subtitle="Demucs vocal isolation → Groq Whisper transcription → LRC"
       />
 
-      {/* Hidden audio element */}
       {selected && (
-        <audio
-          ref={audioRef}
-          src={audioSrc}
-          preload="metadata"
-          crossOrigin="anonymous"
-        />
+        <audio ref={audioRef} src={audioSrc} preload="metadata" crossOrigin="anonymous" />
       )}
 
-      {/* 3-Panel Layout */}
-      <div style={{
-        display: 'flex', border: '1px solid #1a1a1a', borderRadius: 12,
-        overflow: 'hidden', background: '#080808',
-        height: 'calc(100vh - 200px)'
-      }}>
-        {/* Left — Song Selector */}
+      <div style={{ display: 'flex', border: '1px solid #1a1a1a', borderRadius: 12, overflow: 'hidden', background: '#080808', height: 'calc(100vh - 200px)' }}>
         <SongSelector
-          songs={filtered}
-          loading={loading}
-          selected={selected}
-          onSelect={handleSelect}
-          search={search}
-          setSearch={setSearch}
+          songs={filtered} loading={loading} selected={selected}
+          onSelect={handleSelect} search={search} setSearch={setSearch}
         />
-
-        {/* Center — Player + Get Lyrics */}
         <AudioPlayer
-          song={selected}
-          language={language}
-          setLanguage={setLanguage}
-          onGetLyrics={handleGetLyrics}
-          generating={generating}
-          audioRef={audioRef}
-          isPlaying={isPlaying}
-          setIsPlaying={setIsPlaying}
-          currentTime={currentTime}
-          duration={duration}
+          song={selected} language={language} setLanguage={setLanguage}
+          onGetLyrics={handleGetLyrics} generating={generating}
+          audioRef={audioRef} isPlaying={isPlaying} setIsPlaying={setIsPlaying}
+          currentTime={currentTime} duration={duration}
+          demucsStatus={demucsStatus}
+          userLyrics={userLyrics} setUserLyrics={setUserLyrics}
+          genStep={genStep}
         />
-
-        {/* Right — Lyrics Editor */}
         <LyricsEditor
-          lrc={lrc}
-          setLrc={setLrc}
-          song={selected}
-          onSave={handleSave}
-          saving={saving}
-          lrcMeta={lrcMeta}
-          currentTime={currentTime}
-          isPlaying={isPlaying}
-          audioRef={audioRef}
+          lrc={lrc} setLrc={setLrc} song={selected}
+          onSave={handleSave} saving={saving} lrcMeta={lrcMeta}
+          currentTime={currentTime} isPlaying={isPlaying} audioRef={audioRef}
         />
       </div>
     </div>
