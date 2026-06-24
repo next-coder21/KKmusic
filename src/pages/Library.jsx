@@ -3,15 +3,11 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useUser }   from "../context/UserContext";
 import { usePlayer } from "../context/PlayerContext";
-import { Music, Heart, Clock, Plus, Share2, Trash2, Globe, Lock, Library as LibraryIcon } from "lucide-react";
-import axios from "axios";
+import { Music, Heart, Clock, Plus, Share2, Trash2, Globe, Lock, Library as LibraryIcon, Play } from "lucide-react";
 import http from "../services/http";
-import ApiService from "../services/ApiService";
-import { API_CONFIG } from "../config";
 import toast from "react-hot-toast";
 import { songDefaults, fmtDuration } from "../utils/songUtils";
-
-const BASE = API_CONFIG.AUTH_URL; 
+import AlbumArt from "../components/common/AlbumArt";
 
 const TABS = [
   { id:"playlists",  label:"Playlists",  icon:Music  },
@@ -19,8 +15,6 @@ const TABS = [
   { id:"favourites", label:"Favourites", icon:Heart  },
   { id:"history",    label:"History",    icon:Clock  },
 ];
-
-const Bone = ({ w="100%", h=14, r=6 }) => <div className="bone" style={{ width:w, height:h, borderRadius:r }}/>;
 
 export default function Library() {
   const { user } = useUser();
@@ -50,26 +44,24 @@ export default function Library() {
     const load = async () => {
       try {
         if (tab === "playlists") {
-          // Real API call — falls back gracefully if table doesn't exist
           const r = await http.get("/auth/playlists")
             .catch(() => ({ data:[] }));
           setPlaylists(r.data || []);
 
         } else if (tab === "albums") {
-          const r = await axios.get(`${BASE}/music/albums`);
+          const r = await http.get("/auth/music/albums");
           setAlbums(r.data || []);
 
         } else if (tab === "favourites") {
           const r = await http.get("/auth/favourites");
           const ids = r.data.favourites || [];
-          const detailed = await Promise.all(ids.map(async id => {
-            try { const s = await axios.get(`${BASE}/music/songs/${id}`); return songDefaults({id,...s.data}); }
+          const detailed = await Promise.all(ids.slice(0, 50).map(async id => {
+            try { const s = await http.get(`/auth/music/songs/${id}`); return songDefaults({id,...s.data}); }
             catch { return null; }
           }));
           setFavs(detailed.filter(Boolean));
 
         } else {
-          // FIX: was /auth/play-history — BASE already = /auth, so this is /auth/play-history ✓
           const r = await http.get("/auth/play-history")
             .catch(() => ({ data:[] }));
           setHistory(r.data || []);
@@ -80,16 +72,12 @@ export default function Library() {
     load();
   }, [tab, email]);
 
-  // Real playlist create
   const createPlaylist = async e => {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const r = await http.post("/auth/playlists", { name:newName.trim() })
-        .catch(async () => {
-          return { data: { id:Date.now().toString(), name:newName.trim(), isShared:false, songCount:0 } };
-        });
+      const r = await http.post("/auth/playlists", { name:newName.trim() });
       setPlaylists(prev => [r.data, ...prev]);
       setShowCreate(false); setNewName("");
       toast.success("Playlist created!");
@@ -97,7 +85,6 @@ export default function Library() {
     finally { setCreating(false); }
   };
 
-  // Real playlist delete
   const deletePlaylist = async (id) => {
     if (!window.confirm("Delete this playlist?")) return;
     try {
@@ -107,7 +94,6 @@ export default function Library() {
     } catch { toast.error("Failed to delete"); }
   };
 
-  // Toggle share
   const toggleShare = async (id, currentState) => {
     try {
       await http.patch(`/auth/playlists/${id}`, { is_public:!currentState }).catch(()=>{});
@@ -116,84 +102,163 @@ export default function Library() {
     } catch {}
   };
 
-  const playSong = async id => {
+  const playSong = id => {
     if (!email) return;
-    try {
-      await http.post("/auth/queue/add", { songIds:[id], album:false });
-      setCurrentSongId(id); setQueueUpdated(p=>!p);
-      setUserStarted(true);
-      setIsPlaying(true);
-    } catch {}
+    setCurrentSongId(id);
+    setUserStarted(true);
+    setIsPlaying(true);
+    http.post("/auth/queue/add", { songIds: [id], album: false })
+      .then(() => setQueueUpdated(p => !p))
+      .catch(() => {});
   };
 
-  const iSt = { width:"100%", padding:"10px 14px", borderRadius:8, background:"var(--bg-card-hover)", border:"1px solid var(--border)", color:"var(--text-primary)", fontSize:14, fontFamily:"'Outfit',sans-serif", outline:"none", transition:"border-color .15s" };
+  const playAlbum = async albumId => {
+    if (!email) { toast.error("Please login to play music"); return; }
+    try {
+      const res = await http.get("/auth/music/songs", { params: { album_id: albumId } });
+      const songs = res.data || [];
+      if (!songs.length) { toast.error("This album has no tracks"); return; }
+      setCurrentSongId(songs[0].id);
+      setUserStarted(true);
+      setIsPlaying(true);
+      http.post("/auth/queue/add", { songIds: songs.map(s => s.id), album: true })
+        .then(() => setQueueUpdated(p => !p))
+        .catch(() => {});
+    } catch (err) {
+      console.error("playAlbum:", err);
+      toast.error("Failed to play album");
+    }
+  };
 
   return (
-    <div style={{ fontFamily:"'Outfit',sans-serif" }}>
-      <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"var(--text-primary)", margin:"0 0 20px" }}>Your Library</h1>
+    <div className="lib-page">
+      {/* Hero header */}
+      <div className="lib-hero">
+        <div className="lib-eyebrow">
+          <span className="lib-eyebrow-dot" />
+          <span className="lib-eyebrow-text">Collection</span>
+        </div>
+        <h1 className="lib-title">Your Library</h1>
+        {loading ? (
+          <div className="lib-skeleton-bone" style={{ width: 180, height: 12, borderRadius: 6 }} />
+        ) : (
+          <p className="lib-subtitle">
+            {tab === 'playlists' ? `${playlists.length} playlists` :
+             tab === 'albums' ? `${albums.length} albums` :
+             tab === 'favourites' ? `${favs.length} favourites` :
+             `${history.length} played`}
+          </p>
+        )}
+      </div>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:4, padding:4, background:"var(--bg-card)", borderRadius:10, width:"fit-content", marginBottom:20, border:"1px solid var(--border)" }}>
-        {TABS.map(t => { const Icon=t.icon; const active=tab===t.id; return (
-          <button key={t.id} onClick={()=>handleTabChange(t.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 14px", borderRadius:7, border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontSize:12, fontWeight:active?700:500, background:active?"var(--accent)":"transparent", color:active?"#fff":"var(--text-secondary)", transition:"all .15s" }}>
-            <Icon size={13}/>{t.label}
-          </button>
-        );})}
+      {/* Tab bar */}
+      <div className="lib-tab-bar" role="tablist" aria-label="Library sections">
+        {TABS.map(t => {
+          const Icon = t.icon;
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              aria-controls={`lib-panel-${t.id}`}
+              onClick={() => handleTabChange(t.id)}
+              className={`lib-tab${active ? " lib-tab--active" : ""}`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <AnimatePresence mode="wait">
         {loading ? (
-          <motion.div key="loading" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} style={{ display:"flex",flexDirection:"column",gap:4 }}>
-            {Array.from({length:5}).map((_,i) => (
-              <div key={i} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8 }}>
-                <Bone w={52} h={52} r={8}/><div style={{ flex:1,display:"flex",flexDirection:"column",gap:6 }}><Bone w="50%" h={13}/><Bone w="30%" h={10}/></div>
-              </div>
-            ))}
+          <motion.div key="loading" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {Array.from({length:6}).map((_,i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:14, padding:"10px 12px" }}>
+                  <div className="lib-skeleton-bone" style={{ width:48, height:48, borderRadius:10, flexShrink:0 }} />
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+                    <div className="lib-skeleton-bone" style={{ width:"55%", height:14 }} />
+                    <div className="lib-skeleton-bone" style={{ width:"30%", height:10 }} />
+                  </div>
+                  <div className="lib-skeleton-bone" style={{ width:40, height:10 }} />
+                </div>
+              ))}
+            </div>
           </motion.div>
         ) : (
-          <motion.div key={tab} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>
+          <motion.div
+            key={tab}
+            id={`lib-panel-${tab}`}
+            role="tabpanel"
+            initial={{opacity:0,y:8}}
+            animate={{opacity:1,y:0}}
+            exit={{opacity:0,y:-8}}
+            transition={{duration:.2}}
+          >
 
-            {/* ── Playlists ── */}
+            {/* Playlists */}
             {tab === "playlists" && (
               <div>
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
-                  <button onClick={()=>setShowCreate(true)} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:"var(--bg-card)",border:"1px solid var(--border)",cursor:"pointer",color:"var(--text-primary)",fontSize:12,fontWeight:600,fontFamily:"'Outfit',sans-serif",transition:"all .15s" }}
-                    onMouseEnter={e=>{e.currentTarget.style.background="var(--accent)";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="var(--accent)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.background="var(--bg-card)";e.currentTarget.style.color="var(--text-primary)";e.currentTarget.style.borderColor="var(--border)";}}>
-                    <Plus size={13}/> Create Playlist
+                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="lib-create-btn"
+                    aria-label="Create new playlist"
+                  >
+                    <Plus size={14} aria-hidden="true" /> Create Playlist
                   </button>
                 </div>
 
                 {playlists.length === 0 ? (
-                  <div style={{ textAlign:"center",padding:"48px 0",border:"2px dashed var(--border)",borderRadius:12 }}>
-                    <Music size={36} style={{ color:"var(--text-muted)",marginBottom:12,opacity:.3 }}/>
-                    <p style={{ fontWeight:700,color:"var(--text-primary)",margin:"0 0 6px",fontFamily:"'Syne',sans-serif" }}>No Playlists</p>
-                    <p style={{ fontSize:12,color:"var(--text-muted)",margin:0 }}>Create your first playlist</p>
+                  <div className="lib-empty">
+                    <Music size={48} className="lib-empty-icon" aria-hidden="true" />
+                    <p className="lib-empty-title">No Playlists</p>
+                    <p className="lib-empty-sub">Create your first playlist to get started</p>
                   </div>
                 ) : (
-                  <Reorder.Group axis="y" values={playlists} onReorder={setPlaylists} style={{ display:"flex",flexDirection:"column",gap:4,listStyle:"none",padding:0,margin:0 }}>
-                    {playlists.map(p => (
+                  <Reorder.Group axis="y" values={playlists} onReorder={(newOrder) => {
+                    setPlaylists(newOrder);
+                    // TODO: backend reorder endpoint not yet implemented
+                  }} style={{ display:"flex", flexDirection:"column", gap:6, listStyle:"none", padding:0, margin:0 }}>
+                    {playlists.map((p, i) => (
                       <Reorder.Item key={p.id} value={p} style={{ listStyle:"none" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,background:"var(--bg-card)",border:"1px solid var(--border)",cursor:"grab" }}
+                        <div
+                          className="lib-playlist-card lib-stagger-item"
+                          style={{ animationDelay:`${i * 50}ms` }}
                           onClick={() => navigate(`/playlist/${p.id}`)}
-                          onMouseEnter={e => e.currentTarget.style.borderColor="var(--accent)"}
-                          onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Open playlist ${p.name}`}
+                          onKeyDown={e => e.key === "Enter" && navigate(`/playlist/${p.id}`)}
                         >
-                          <div style={{ width:48,height:48,borderRadius:8,background:"var(--accent-soft)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-                            <Music size={18} style={{ color:"var(--accent)" }}/>
+                          <div className="lib-playlist-icon">
+                            <Music size={20} aria-hidden="true" />
                           </div>
-                          <div style={{ flex:1,minWidth:0 }}>
-                            <p style={{ fontSize:14,fontWeight:600,color:"var(--text-primary)",margin:0 }}>{p.name}</p>
-                            <p style={{ fontSize:11,color:"var(--text-muted)",margin:"2px 0 0" }}>{p.songCount||p.song_count||0} {(p.songCount||p.song_count||0)===1?"song":"songs"}</p>
+                          <div className="lib-playlist-info">
+                            <p className="lib-playlist-name">{p.name}</p>
+                            <p className="lib-playlist-count">
+                              {p.songCount||p.song_count||0} {(p.songCount||p.song_count||0)===1?"song":"songs"}
+                            </p>
                           </div>
-                          <div style={{ display:"flex",gap:6 }}>
-                            <button onClick={()=>toggleShare(p.id, p.isShared||p.is_public)} style={{ padding:6,borderRadius:6,border:"1px solid",borderColor:(p.isShared||p.is_public)?"var(--accent)":"var(--border)",background:(p.isShared||p.is_public)?"var(--accent-soft)":"transparent",cursor:"pointer",color:(p.isShared||p.is_public)?"var(--accent)":"var(--text-muted)",display:"flex" }} title={(p.isShared||p.is_public)?"Make private":"Make public"}>
-                              {(p.isShared||p.is_public) ? <Globe size={13}/> : <Lock size={13}/>}
+                          <div className="lib-playlist-actions" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => toggleShare(p.id, p.isShared||p.is_public)}
+                              className={`lib-action-btn${(p.isShared||p.is_public) ? " lib-action-btn--active" : ""}`}
+                              title={(p.isShared||p.is_public) ? "Make private" : "Make public"}
+                              aria-label={(p.isShared||p.is_public) ? "Make playlist private" : "Make playlist public"}
+                            >
+                              {(p.isShared||p.is_public) ? <Globe size={14} aria-hidden="true" /> : <Lock size={14} aria-hidden="true" />}
                             </button>
-                            <button onClick={()=>deletePlaylist(p.id)} style={{ padding:6,borderRadius:6,border:"1px solid var(--border)",background:"transparent",cursor:"pointer",color:"var(--text-muted)",display:"flex",transition:"all .12s" }}
-                              onMouseEnter={e=>{e.currentTarget.style.color="#f87171";e.currentTarget.style.borderColor="rgba(248,113,113,.3)";}}
-                              onMouseLeave={e=>{e.currentTarget.style.color="var(--text-muted)";e.currentTarget.style.borderColor="var(--border)";}}>
-                              <Trash2 size={13}/>
+                            <button
+                              onClick={() => deletePlaylist(p.id)}
+                              className="lib-action-btn lib-action-btn--danger"
+                              title="Delete playlist"
+                              aria-label={`Delete playlist ${p.name}`}
+                            >
+                              <Trash2 size={14} aria-hidden="true" />
                             </button>
                           </div>
                         </div>
@@ -204,55 +269,44 @@ export default function Library() {
               </div>
             )}
 
-            {/* ── Albums ── */}
+            {/* Albums */}
             {tab === "albums" && (
-              <div style={{ paddingBottom:40 }}>
-                {albums.length === 0 ? (
-                  <div style={{ textAlign:"center",padding:"48px 0",border:"2px dashed var(--border)",borderRadius:12 }}>
-                    <Library size={36} style={{ color:"var(--text-muted)",marginBottom:12,opacity:.3 }}/>
-                    <p style={{ fontWeight:700,color:"var(--text-primary)",margin:"0 0 6px",fontFamily:"'Syne',sans-serif" }}>No Albums</p>
-                    <p style={{ fontSize:12,color:"var(--text-muted)",margin:0 }}>Saved albums will appear here</p>
-                  </div>
-                ) : (
-                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",gap:20 }}>
-                    {albums.map(al => (
-                      <motion.div key={al.id} whileHover={{ y:-4 }} style={{ cursor:"pointer" }}>
-                        <div style={{ position:"relative",aspectRatio:"1/1",marginBottom:10 }}>
-                          <img src={al.cover_url||"/default-album.jpg"} alt="" style={{ width:"100%",height:"100%",borderRadius:12,objectFit:"cover",border:"1px solid var(--border)",boxShadow:"0 10px 25px -10px rgba(0,0,0,0.5)" }} onError={e=>e.target.src="/default-album.jpg"}/>
-                        </div>
-                        <p style={{ fontSize:13,fontWeight:600,color:"var(--text-primary)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{al.title}</p>
-                        <p style={{ fontSize:11,color:"var(--text-muted)",margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{al.artist_name}</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Favourites ── */}
-            {tab === "favourites" && (
               <div>
-                {favs.length === 0 ? (
-                  <div style={{ textAlign:"center",padding:"48px 0",border:"2px dashed var(--border)",borderRadius:12 }}>
-                    <Heart size={36} style={{ color:"var(--text-muted)",marginBottom:12,opacity:.3 }}/>
-                    <p style={{ fontWeight:700,color:"var(--text-primary)",margin:"0 0 6px",fontFamily:"'Syne',sans-serif" }}>No Favourites</p>
-                    <p style={{ fontSize:12,color:"var(--text-muted)",margin:0 }}>Like songs to see them here</p>
+                <div style={{ marginBottom: 16 }}>
+                  <h2 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #fff)", letterSpacing: "-0.02em" }}>
+                    Browse Albums
+                  </h2>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted, rgba(255,255,255,0.4))", fontWeight: 500 }}>
+                    All albums in the catalog
+                  </p>
+                </div>
+                {albums.length === 0 ? (
+                  <div className="lib-empty">
+                    <LibraryIcon size={48} className="lib-empty-icon" aria-hidden="true" />
+                    <p className="lib-empty-title">No Albums</p>
+                    <p className="lib-empty-sub">No albums in the catalog yet</p>
                   </div>
                 ) : (
-                  <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                    {favs.map(s => (
-                      <div key={s.id} onClick={()=>playSong(s.id)}
-                        style={{ display:"flex",alignItems:"center",gap:12,padding:"8px 12px",borderRadius:8,cursor:"pointer",transition:"background .12s" }}
-                        onMouseEnter={e=>e.currentTarget.style.background="var(--bg-card)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  <div className="lib-album-grid">
+                    {albums.map((al, i) => (
+                      <div
+                        key={al.id}
+                        className="lib-album-card lib-stagger-item"
+                        style={{ animationDelay:`${i * 60}ms` }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Play album ${al.title} by ${al.artist_name}`}
                       >
-                        <img src={s.cover_url} alt="" style={{ width:42,height:42,borderRadius:6,objectFit:"cover",border:"1px solid var(--border)",flexShrink:0 }} onError={e=>e.target.src="/default-album.jpg"}/>
-                        <div style={{ flex:1,minWidth:0 }}>
-                          <p style={{ fontSize:13,fontWeight:600,color:"var(--text-primary)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.title}</p>
-                          <p style={{ fontSize:11,color:"var(--text-muted)",margin:0 }}>{s.artist_name}</p>
+                        <div className="lib-album-art-wrap">
+                          <AlbumArt src={al.cover_url} title={al.title} size="100%" radius="0" className="lib-album-art" />
+                          <div className="lib-album-overlay">
+                            <button className="lib-album-play-btn" aria-label={`Play ${al.title}`} onClick={e => { e.stopPropagation(); playAlbum(al.id); }}>
+                              <Play size={20} fill="currentColor" aria-hidden="true" />
+                            </button>
+                          </div>
                         </div>
-                        <span style={{ fontSize:11,color:"var(--text-muted)",flexShrink:0 }}>{fmtDuration(s.duration_seconds)}</span>
-                        <Heart size={14} style={{ color:"var(--accent)",flexShrink:0 }} fill="currentColor"/>
+                        <p className="lib-album-title">{al.title}</p>
+                        <p className="lib-album-artist">{al.artist_name}</p>
                       </div>
                     ))}
                   </div>
@@ -260,29 +314,72 @@ export default function Library() {
               </div>
             )}
 
-            {/* ── History ── */}
+            {/* Favourites */}
+            {tab === "favourites" && (
+              <div>
+                {favs.length === 0 ? (
+                  <div className="lib-empty">
+                    <Heart size={48} className="lib-empty-icon" aria-hidden="true" />
+                    <p className="lib-empty-title">No Favourites</p>
+                    <p className="lib-empty-sub">Like songs to see them here</p>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                    {favs.map((s, i) => (
+                      <div
+                        key={s.id}
+                        className="lib-track-row lib-stagger-item"
+                        style={{ animationDelay:`${i * 40}ms` }}
+                        onClick={() => playSong(s.id)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Play ${s.title} by ${s.artist_name}`}
+                        onKeyDown={e => e.key === "Enter" && playSong(s.id)}
+                      >
+                        <span className="lib-track-index">{String(i+1).padStart(2,"0")}</span>
+                        <AlbumArt src={s.cover_url} title={s.album_title || s.title} size={40} radius="6px" className="lib-track-thumb" />
+                        <div className="lib-track-info">
+                          <p className="lib-track-title">{s.title}</p>
+                          <p className="lib-track-artist">{s.artist_name}</p>
+                        </div>
+                        <span className="lib-track-duration">{fmtDuration(s.duration_seconds)}</span>
+                        <Heart size={14} className="lib-track-heart" fill="currentColor" aria-label="Favourited" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* History */}
             {tab === "history" && (
               <div>
                 {history.length === 0 ? (
-                  <div style={{ textAlign:"center",padding:"48px 0",border:"2px dashed var(--border)",borderRadius:12 }}>
-                    <Clock size={36} style={{ color:"var(--text-muted)",marginBottom:12,opacity:.3 }}/>
-                    <p style={{ fontWeight:700,color:"var(--text-primary)",margin:"0 0 6px",fontFamily:"'Syne',sans-serif" }}>No History</p>
-                    <p style={{ fontSize:12,color:"var(--text-muted)",margin:0 }}>Start listening to build history</p>
+                  <div className="lib-empty">
+                    <Clock size={48} className="lib-empty-icon" aria-hidden="true" />
+                    <p className="lib-empty-title">No History</p>
+                    <p className="lib-empty-sub">Start listening to build your history</p>
                   </div>
                 ) : (
-                  <div style={{ display:"flex",flexDirection:"column",gap:2 }}>
-                    {history.map((s,i) => (
-                      <div key={`${s.id}-${i}`} onClick={()=>playSong(s.id)}
-                        style={{ display:"flex",alignItems:"center",gap:12,padding:"8px 12px",borderRadius:8,cursor:"pointer",transition:"background .12s" }}
-                        onMouseEnter={e=>e.currentTarget.style.background="var(--bg-card)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                    {history.map((s, i) => (
+                      <div
+                        key={`${s.id}-${i}`}
+                        className="lib-track-row lib-stagger-item"
+                        style={{ animationDelay:`${i * 40}ms` }}
+                        onClick={() => playSong(s.id)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Play ${s.title} by ${s.artist_name}`}
+                        onKeyDown={e => e.key === "Enter" && playSong(s.id)}
                       >
-                        <img src={s.cover_url||"/default-album.jpg"} alt="" style={{ width:42,height:42,borderRadius:6,objectFit:"cover",border:"1px solid var(--border)",flexShrink:0 }} onError={e=>e.target.src="/default-album.jpg"}/>
-                        <div style={{ flex:1,minWidth:0 }}>
-                          <p style={{ fontSize:13,fontWeight:600,color:"var(--text-primary)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.title}</p>
-                          <p style={{ fontSize:11,color:"var(--text-muted)",margin:0 }}>{s.artist_name}</p>
+                        <span className="lib-track-index">{String(i+1).padStart(2,"0")}</span>
+                        <AlbumArt src={s.cover_url} title={s.album_title || s.title} size={40} radius="6px" className="lib-track-thumb" />
+                        <div className="lib-track-info">
+                          <p className="lib-track-title">{s.title}</p>
+                          <p className="lib-track-artist">{s.artist_name}</p>
                         </div>
-                        <span style={{ fontSize:11,color:"var(--text-muted)",flexShrink:0 }}>{fmtDuration(s.duration_seconds)}</span>
+                        <span className="lib-track-duration">{fmtDuration(s.duration_seconds)}</span>
                       </div>
                     ))}
                   </div>
@@ -294,24 +391,46 @@ export default function Library() {
         )}
       </AnimatePresence>
 
-      {/* Create modal */}
+      {/* Create playlist modal */}
       <AnimatePresence>
         {showCreate && (
           <>
-            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-              style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)",zIndex:60 }}
-              onClick={()=>setShowCreate(false)}
+            <motion.div
+              initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+              className="lib-modal-overlay"
+              onClick={() => setShowCreate(false)}
             />
-            <motion.div initial={{opacity:0,scale:.95,y:16}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:.95,y:16}}
-              style={{ position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(400px,90vw)",background:"var(--bg-sidebar)",border:"1px solid var(--border-strong)",borderRadius:16,padding:24,zIndex:70,boxShadow:"0 24px 64px rgba(0,0,0,.6)" }}>
-              <h2 style={{ fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"var(--text-primary)",margin:"0 0 16px" }}>New Playlist</h2>
+            <motion.div
+              initial={{opacity:0,scale:.95,y:16}}
+              animate={{opacity:1,scale:1,y:0}}
+              exit={{opacity:0,scale:.95,y:16}}
+              className="lib-modal"
+            >
+              <h2 className="lib-modal-title">New Playlist</h2>
               <form onSubmit={createPlaylist}>
-                <input type="text" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="My Awesome Playlist" autoFocus style={iSt}
-                  onFocus={e=>e.target.style.borderColor="var(--accent)"} onBlur={e=>e.target.style.borderColor="var(--border)"}/>
-                <div style={{ display:"flex",gap:8,marginTop:14 }}>
-                  <button type="button" onClick={()=>setShowCreate(false)} style={{ flex:1,padding:"9px 0",borderRadius:8,background:"transparent",border:"1px solid var(--border)",cursor:"pointer",color:"var(--text-secondary)",fontSize:13,fontFamily:"'Outfit',sans-serif" }}>Cancel</button>
-                  <button type="submit" disabled={!newName.trim()||creating} style={{ flex:1,padding:"9px 0",borderRadius:8,background:"var(--accent)",border:"none",cursor:"pointer",color:"#fff",fontSize:13,fontWeight:700,fontFamily:"'Outfit',sans-serif",opacity:newName.trim()&&!creating?1:.5 }}>
-                    {creating?"Creating…":"Create"}
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="My Awesome Playlist"
+                  autoFocus
+                  className="lib-modal-input"
+                  aria-label="Playlist name"
+                />
+                <div className="lib-modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreate(false)}
+                    className="lib-modal-cancel"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!newName.trim()||creating}
+                    className="lib-modal-submit"
+                  >
+                    {creating ? "Creating…" : "Create"}
                   </button>
                 </div>
               </form>

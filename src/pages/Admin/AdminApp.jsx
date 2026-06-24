@@ -85,13 +85,10 @@ const Sidebar = ({ onLogout, api, adminName, mobileOpen, setMobileOpen }) => {
   const [scheduledCount, setScheduledCount] = useState(0);
 
   useEffect(() => {
-    const load = async () => {
-      try { const { data } = await api.get('/announcements?status=scheduled'); setScheduledCount(data.total || 0); } catch {}
-    };
-    load();
-    const iv = setInterval(load, 60000);
-    return () => clearInterval(iv);
-  }, [api]);
+    api.get('/announcements?status=scheduled')
+      .then(({ data }) => setScheduledCount(data.total || 0))
+      .catch(() => {});
+  }, [api]); // fetch once on mount — no polling needed for a badge count
 
   return (
     <>
@@ -223,7 +220,7 @@ const AdminApp = () => {
     setAdminName('');
     // Also tell backend to clear the cookie (best-effort)
     adminApi.post('/logout').catch(() => {});
-    window.location.replace('/admin/login');
+    window.location.replace('/muves/');
   };
 
   if (loading) return (
@@ -276,7 +273,7 @@ const AdminApp = () => {
         }
       `}</style>
       <Sidebar onLogout={handleLogout} api={adminApi} adminName={adminName} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, marginLeft: 220, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left 0.3s' }}>
+      <div className="admin-main-wrapper" style={{ flex: 1, minWidth: 0, marginLeft: 220, display: 'flex', flexDirection: 'column', height: '100vh', transition: 'margin-left 0.3s' }}>
         <TopBar setMobileOpen={setMobileOpen} isDark={isDark} toggleTheme={toggleTheme} />
         <main className="admin-fade admin-main-content" style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }}>
           <Routes>

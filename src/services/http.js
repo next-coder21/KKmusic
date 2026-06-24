@@ -31,30 +31,52 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-/* Global 401 handling — clear stale credentials and redirect once. */
+/* Global 401 handling — attempt silent token refresh once, then redirect. */
+let isRefreshing = false;
 let isRedirecting = false;
+
+function clearAuthAndRedirect() {
+  if (isRedirecting) return;
+  isRedirecting = true;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(AUTH_FLAG_KEY);
+  toast.error("Session expired. Please sign in again.");
+  setTimeout(() => {
+    window.location.href = "/login";
+    isRedirecting = false;
+  }, 600);
+}
+
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
     const status = err?.response?.status;
+    const url = err.config?.url || "";
 
-    if (status === 401 && !isRedirecting) {
-      // Don't bounce on /check-auth — that endpoint is *meant* to 401
-      // when the user isn't logged in. Let UserContext handle it.
-      const url = err.config?.url || "";
-      const isAuthCheck = url.includes("/check-auth") || url.includes("/login");
+    // Skip refresh logic for auth endpoints to avoid loops
+    const isAuthEndpoint =
+      url.includes("/check-auth") ||
+      url.includes("/login") ||
+      url.includes("/register") ||
+      url.includes("/refresh");
 
-      if (!isAuthCheck) {
-        isRedirecting = true;
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(AUTH_FLAG_KEY);
-        toast.error("Session expired. Please sign in again.");
-        // Small delay so the toast is visible before navigation
-        setTimeout(() => {
-          window.location.href = "/login";
-          isRedirecting = false;
-        }, 600);
+    if (status === 401 && !isAuthEndpoint && !err.config?._retried) {
+      if (isRefreshing) {
+        // Another refresh is in flight — just reject
+        return Promise.reject(err);
       }
+      isRefreshing = true;
+      try {
+        await http.post("/auth/refresh", {}, { _retried: true });
+        isRefreshing = false;
+        // Retry the original request exactly once
+        return http({ ...err.config, _retried: true });
+      } catch {
+        isRefreshing = false;
+        clearAuthAndRedirect();
+      }
+    } else if (status === 401 && !isAuthEndpoint) {
+      clearAuthAndRedirect();
     }
 
     return Promise.reject(err);

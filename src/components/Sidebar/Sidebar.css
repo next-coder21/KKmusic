@@ -1,0 +1,238 @@
+/* ── Sidebar shell ──────────────────────────────── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 72px;
+  background: #09090f;
+  color: #fff;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  align-items: center;
+  position: relative;
+}
+
+/* ── Logo ────────────────────────────────────────── */
+.sidebar__logo {
+  height: 80px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar__logo-glyph {
+  font-size: 26px;
+  font-weight: 900;
+  color: #C8FF00;
+  line-height: 1;
+  user-select: none;
+  cursor: default;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.sidebar__logo-glyph:hover { transform: scale(1.1); }
+
+/* ── Scrollable nav area ─────────────────────────── */
+.sidebar__scroll {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 8px;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0 14px;
+}
+
+.sidebar__divider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 12px 16px;
+  width: calc(100% - 32px);
+  flex-shrink: 0;
+}
+
+/* ── Nav icon button ─────────────────────────────── */
+.nav-icon-link {
+  text-decoration: none;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.nav-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  border: none;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.nav-icon-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.88);
+  transform: scale(1.05);
+}
+
+.nav-icon-btn:active { transform: scale(0.93); }
+
+.nav-icon-btn--active {
+  background: rgba(200,255,0,0.12);
+  color: #C8FF00;
+}
+
+.nav-icon-btn--active:hover {
+  background: rgba(200,255,0,0.18);
+  color: #C8FF00;
+  transform: scale(1.03);
+}
+
+/* ── Bottom section ──────────────────────────────── */
+.sidebar__bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 16px;
+  width: 100%;
+}
+
+.sidebar__plus-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Avatar ──────────────────────────────────────── */
+.sidebar__avatar-wrap {
+  position: relative;
+  cursor: pointer;
+}
+
+.sidebar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.15);
+  display: block;
+  transition: border-color 0.18s ease;
+}
+
+.sidebar__avatar-wrap:hover .sidebar__avatar { border-color: #C8FF00; }
+
+.sidebar__avatar-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #C8FF00;
+  border: 1.5px solid #09090f;
+}
+
+/* ── New-playlist popover ────────────────────────── */
+.sidebar__popover {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 10px);
+  background: #15151e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  padding: 14px;
+  width: 220px;
+  z-index: 200;
+}
+
+.sidebar__popover-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #C8FF00;
+}
+
+.sidebar__popover-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__popover-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sidebar__popover-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.18s;
+}
+
+.sidebar__popover-input:focus { border-color: rgba(200,255,0,0.45); }
+.sidebar__popover-input::placeholder { color: rgba(255,255,255,0.3); }
+
+.sidebar__popover-submit {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  background: #C8FF00;
+  color: #000;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  font-family: inherit;
+}
+
+.sidebar__popover-submit:hover { opacity: 0.88; }
+.sidebar__popover-submit:active { transform: scale(0.97); }
+.sidebar__popover-submit:disabled {
+  background: rgba(200,255,0,0.3);
+  cursor: default;
+  opacity: 1;
+}
+
+.sidebar__popover-cancel {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.sidebar__popover-cancel:hover { background: rgba(255,255,255,0.06); }

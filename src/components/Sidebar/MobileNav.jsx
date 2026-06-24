@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Home, Search, Library, User } from "lucide-react";
 
 const items = [
-  { name: "Home",    path: "/",               icon: Home    },
+  { name: "Home",    path: "/home",            icon: Home    },
   { name: "Search",  path: "/search",         icon: Search  },
   { name: "Library", path: "/library",        icon: Library },
   { name: "Profile", path: "/update-profile", icon: User    },
@@ -11,12 +11,15 @@ const items = [
 
 export default function MobileNav() {
   const location = useLocation();
+  const HIDE_ON = ['/settings', '/update-profile'];
+  const hideNav = HIDE_ON.includes(location.pathname) || location.pathname.startsWith('/playlist/');
+  if (hideNav) return null;
   return (
     <nav className="mobile-nav-bar">
       {items.map(({ name, path, icon: Icon }) => {
-        const active = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+        const active = location.pathname === path || (path !== "/home" && location.pathname.startsWith(path));
         return (
-          <Link key={name} to={path} style={{
+          <Link key={name} to={path} aria-label={name} aria-current={active ? "page" : undefined} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
             justifyContent: "center", gap: 3, textDecoration: "none",
             color: active ? "var(--accent)" : "var(--text-muted)",

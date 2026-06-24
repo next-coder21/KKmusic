@@ -9,11 +9,11 @@ const AdminAds = ({ api }) => {
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editAd, setEditAd] = useState(null); 
+  const [editAd, setEditAd] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
-  // ── Data ──────────────────────────────────────────────────────────────────
+  /* ── Data ──────────────────────────────────────────────────────────────── */
   const fetchAds = async () => {
     try {
       const { data } = await api.get('/ads');
@@ -27,30 +27,20 @@ const AdminAds = ({ api }) => {
 
   useEffect(() => { fetchAds(); }, [api]);
 
-  // ── Modal helpers ─────────────────────────────────────────────────────────
-  const openCreate = () => {
-    setEditAd(null);
-    setForm(EMPTY_FORM);
-    setModalOpen(true);
-  };
+  /* ── Modal helpers ────────────────────────────────────────────────────── */
+  const openCreate = () => { setEditAd(null); setForm(EMPTY_FORM); setModalOpen(true); };
 
   const openEdit = (ad) => {
     setEditAd(ad);
-    setForm({ 
-      title: ad.title, 
-      image_url: ad.banner_image_url || '', 
-      link_url: ad.target_url || '', 
-      is_active: ad.is_active 
-    });
+    setForm({ title: ad.title, image_url: ad.banner_image_url || '', link_url: ad.target_url || '', is_active: ad.is_active });
     setModalOpen(true);
   };
 
   const closeModal = () => { setModalOpen(false); setEditAd(null); setForm(EMPTY_FORM); };
 
-  // ── CRUD ──────────────────────────────────────────────────────────────────
+  /* ── CRUD ──────────────────────────────────────────────────────────────── */
   const handleSubmit = async () => {
     if (!form.title.trim()) return toast.error('Title is required');
-
     setSaving(true);
     try {
       if (editAd) {
@@ -94,16 +84,42 @@ const AdminAds = ({ api }) => {
   const activeAd = ads.find(a => a.is_active);
 
   return (
-    <div>
+    <div className="a-ads">
+      <style>{`
+        .a-ads .icon-btn {
+          padding:6px;border-radius:6px;border:1px solid var(--a-border);
+          background:transparent;cursor:pointer;display:flex;align-items:center;
+          transition:all .12s;color:var(--a-muted);
+        }
+        .a-ads .icon-btn:hover { background:var(--a-hover);color:var(--a-text2); }
+        .a-ads .icon-btn.toggle-on { color:#f87171; }
+        .a-ads .icon-btn.toggle-on:hover { color:#fca5a5; }
+        .a-ads .icon-btn.toggle-off { color:#4ade80; }
+        .a-ads .icon-btn.toggle-off:hover { color:#86efac; }
+        .a-ads .icon-btn.delete { border-color:transparent;color:var(--a-faint); }
+        .a-ads .icon-btn.delete:hover { color:#f87171!important;background:rgba(248,113,113,.08)!important; }
+        [data-admin-theme="dark"] .a-ads { --acc:#fb923c; }
+        [data-admin-theme="light"] .a-ads { --acc:#ea580c; }
+      `}</style>
+
+      {/* Live ad banner */}
       {!loading && activeAd && (
-        <Card style={{ marginBottom: 20, border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.04)', display: 'flex', alignItems: 'center', gap: 16 }} p={14}>
-          <img src={activeAd.banner_image_url} alt="" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #222', flexShrink: 0 }} onError={e => e.target.style.display='none'} />
+        <Card style={{ marginBottom: 20, border: '1px solid rgba(74,222,128,.3)', background: 'rgba(74,222,128,.04)', display: 'flex', alignItems: 'center', gap: 16 }} p={14}>
+          <img src={activeAd.banner_image_url} alt={activeAd.title}
+            style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--a-border3)', flexShrink: 0 }}
+            onError={e => e.target.style.display = 'none'} />
           <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 11, color: '#4ade80', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>● Live Ad</p>
-            <p style={{ margin: '2px 0 0', fontSize: 14, color: '#e5e7eb', fontWeight: 600 }}>{activeAd.title}</p>
+            <p style={{ margin: 0, fontSize: 11, color: '#4ade80', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Syne',sans-serif" }}>● Live Ad</p>
+            <p style={{ margin: '2px 0 0', fontSize: 14, color: 'var(--a-text)', fontWeight: 600 }}>{activeAd.title}</p>
           </div>
-          {activeAd.target_url && <a href={activeAd.target_url} target="_blank" rel="noreferrer" style={{ color: '#ec4899', fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>View Link ↗</a>}
-          <button onClick={() => toggleActive(activeAd)} style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {activeAd.target_url && (
+            <a href={activeAd.target_url} target="_blank" rel="noreferrer"
+              style={{ color: '#fb923c', fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>
+              View Link ↗
+            </a>
+          )}
+          <button onClick={() => toggleActive(activeAd)}
+            style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)', color: '#f87171', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s' }}>
             Deactivate
           </button>
         </Card>
@@ -114,9 +130,7 @@ const AdminAds = ({ api }) => {
           title="Advertisements"
           subtitle={`${ads.length} ad${ads.length !== 1 ? 's' : ''} configured`}
         />
-        <Btn variant="primary" onClick={openCreate}>
-          <FiPlus size={14} /> New Ad
-        </Btn>
+        <Btn variant="primary" onClick={openCreate} icon={FiPlus}>New Ad</Btn>
       </div>
 
       <TableWrap>
@@ -137,95 +151,69 @@ const AdminAds = ({ api }) => {
               : ads.map(ad => (
                 <Tr key={ad.id}>
                   <Td>
-                    <div style={{ width: 64, height: 42, borderRadius: 6, overflow: 'hidden', border: '1px solid #222', background: '#111' }}>
-                      <img src={ad.banner_image_url} alt={ad.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+                    <div style={{ width: 64, height: 42, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--a-border3)', background: 'var(--a-bg3)' }}>
+                      <img src={ad.banner_image_url} alt={ad.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => e.target.style.display = 'none'} />
                     </div>
                   </Td>
-                  <Td>{ad.title}</Td>
+                  <Td><span style={{ color: 'var(--a-text)', fontSize: 13, fontWeight: 500 }}>{ad.title}</span></Td>
                   <Td muted>
                     {ad.target_url
-                      ? <a href={ad.target_url} target="_blank" rel="noreferrer" style={{ color: '#ec4899', textDecoration: 'none', fontSize: 12 }}>Open ↗</a>
+                      ? <a href={ad.target_url} target="_blank" rel="noreferrer" style={{ color: '#fb923c', textDecoration: 'none', fontSize: 12 }}>Open ↗</a>
                       : '—'}
                   </Td>
                   <Td muted>{new Date(ad.created_at).toLocaleDateString()}</Td>
                   <Td>
                     {ad.is_active
                       ? <Tag color="#4ade80">Active</Tag>
-                      : <Tag color="#6b7280">Inactive</Tag>}
+                      : <Tag color="var(--a-muted)">Inactive</Tag>}
                   </Td>
                   <Td right>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
-                      <button
-                        onClick={() => toggleActive(ad)}
-                        title={ad.is_active ? 'Deactivate' : 'Set Active'}
-                        style={{ padding: 6, borderRadius: 6, border: '1px solid #1f1f1f', background: 'transparent', color: ad.is_active ? '#ef4444' : '#4ade80', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', lineHeight: 1 }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#181818'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
+                      <button onClick={() => toggleActive(ad)} title={ad.is_active ? 'Deactivate' : 'Set Active'}
+                        className={`icon-btn ${ad.is_active ? 'toggle-on' : 'toggle-off'}`}
+                        style={{ fontSize: 18, lineHeight: 1 }}>
                         {ad.is_active ? <FiToggleRight /> : <FiToggleLeft />}
                       </button>
-                      <button
-                        onClick={() => openEdit(ad)}
-                        title="Edit"
-                        style={{ padding: 6, borderRadius: 6, border: '1px solid #1f1f1f', background: 'transparent', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#181818'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
+                      <button onClick={() => openEdit(ad)} title="Edit" className="icon-btn">
                         <FiEdit2 size={14} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(ad.id)}
-                        title="Delete"
-                        style={{ padding: 6, borderRadius: 6, border: '1px solid transparent', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
+                      <button onClick={() => handleDelete(ad.id)} title="Delete" className="icon-btn delete">
                         <FiTrash2 size={14} />
                       </button>
                     </div>
                   </Td>
                 </Tr>
-              ))}
+              ))
+            }
           </tbody>
         )}
       </TableWrap>
 
       <Modal open={modalOpen} onClose={closeModal} title={editAd ? 'Edit Advertisement' : 'New Advertisement'}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Input
-            label="Ad Title *"
-            value={form.title}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            placeholder="e.g. Summer Premium Sale"
-            autoFocus
-          />
-          <Input
-            label="Banner Image URL"
-            value={form.image_url}
-            onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
-            placeholder="https://example.com/banner.jpg"
-          />
+          <Input label="Ad Title *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Summer Premium Sale" autoFocus />
+          <Input label="Banner Image URL" value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://example.com/banner.jpg" />
           {form.image_url && (
-            <div style={{ width: '100%', height: 160, borderRadius: 8, overflow: 'hidden', border: '1px solid #1f1f1f', background: '#0a0a0a' }}>
+            <div style={{ width: '100%', height: 160, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--a-border)', background: 'var(--a-bg3)' }}>
               <img src={form.image_url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.src = ''} />
             </div>
           )}
-          <Input
-            label="Target URL (Optional)"
-            value={form.link_url}
-            onChange={e => setForm(f => ({ ...f, link_url: e.target.value }))}
-            placeholder="https://your-promo.com"
-          />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#e5e7eb', cursor: 'pointer', userSelect: 'none', padding: '10px 12px', borderRadius: 8, background: form.is_active ? 'rgba(74,222,128,0.06)' : '#0a0a0a', border: '1px solid', borderColor: form.is_active ? 'rgba(74,222,128,0.2)' : '#1f1f1f', transition: 'all 0.15s' }}>
-            <input
-              type="checkbox"
-              checked={form.is_active}
+          <Input label="Target URL (Optional)" value={form.link_url} onChange={e => setForm(f => ({ ...f, link_url: e.target.value }))} placeholder="https://your-promo.com" />
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+            color: 'var(--a-text)', cursor: 'pointer', userSelect: 'none',
+            padding: '10px 12px', borderRadius: 8,
+            background: form.is_active ? 'rgba(74,222,128,.06)' : 'var(--a-bg3)',
+            border: `1px solid ${form.is_active ? 'rgba(74,222,128,.2)' : 'var(--a-border)'}`,
+            transition: 'all .15s',
+          }}>
+            <input type="checkbox" checked={form.is_active}
               onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-              style={{ accentColor: '#4ade80', width: 16, height: 16, cursor: 'pointer' }}
-            />
+              style={{ accentColor: '#4ade80', width: 16, height: 16, cursor: 'pointer' }} />
             <div>
               <p style={{ margin: 0, fontWeight: 600, fontSize: 13 }}>Set as Active Ad</p>
-              <p style={{ margin: 0, fontSize: 11, color: '#4b5563' }}>This ad will appear as a popup when users open the app.</p>
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--a-muted)' }}>This ad will appear as a popup when users open the app.</p>
             </div>
           </label>
         </div>

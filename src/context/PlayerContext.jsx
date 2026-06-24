@@ -36,6 +36,11 @@ export const PlayerProvider = ({ children }) => {
   // Add-to-playlist modal — set to a song object { id, title } to open, null to close
   const [addToPlaylistSong, setAddToPlaylistSong] = useState(null);
 
+  // Side panel in bar mode — null | "lyrics" | "queue"
+  // When non-null and player is docked at bottom, a 340px slide-in panel renders
+  // on the right side of the screen without hiding the bottom bar.
+  const [sidePanel, setSidePanel] = useState(null);
+
   return (
     <PlayerContext.Provider value={{
       audioRef,
@@ -56,6 +61,7 @@ export const PlayerProvider = ({ children }) => {
       isLooping, setIsLooping,
       favoritesUpdated, setFavoritesUpdated,
       addToPlaylistSong, setAddToPlaylistSong,
+      sidePanel, setSidePanel,
     }}>
       {children}
     </PlayerContext.Provider>

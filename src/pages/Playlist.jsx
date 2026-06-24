@@ -7,6 +7,7 @@ import { useUser } from "../context/UserContext";
 import http from "../services/http";
 import toast from "react-hot-toast";
 import { fmtDuration } from "../utils/songUtils";
+import AlbumArt from "../components/common/AlbumArt";
 
 const Bone = ({ w = "100%", h = 14, r = 6 }) => (
   <div className="bone" style={{ width: w, height: h, borderRadius: r }} />
@@ -48,28 +49,26 @@ export default function PlaylistPage() {
     load();
   }, [id, user]);
 
-  const playSong = async (songId) => {
-    try {
-      await http.post("/auth/queue/add", { songIds: [songId] });
-      setCurrentSongId(songId);
-      setQueueUpdated(p => !p);
-      setUserStarted(true);
-      setIsPlaying(true);
-    } catch {}
+  const playSong = (songId) => {
+    setCurrentSongId(songId);
+    setUserStarted(true);
+    setIsPlaying(true);
+    http.post("/auth/queue/add", { songIds: [songId] })
+      .then(() => setQueueUpdated(p => !p))
+      .catch(() => {});
   };
 
-  const playAll = async (shuffle = false) => {
+  const playAll = (shuffle = false) => {
     if (!songs.length) return;
     const ids = shuffle
       ? [...songs].sort(() => Math.random() - 0.5).map(s => s.id)
       : songs.map(s => s.id);
-    try {
-      await http.post("/auth/queue/add", { songIds: ids });
-      setCurrentSongId(ids[0]);
-      setQueueUpdated(p => !p);
-      setUserStarted(true);
-      setIsPlaying(true);
-    } catch {}
+    setCurrentSongId(ids[0]);
+    setUserStarted(true);
+    setIsPlaying(true);
+    http.post("/auth/queue/add", { songIds: ids })
+      .then(() => setQueueUpdated(p => !p))
+      .catch(() => {});
   };
 
   const removeSong = async (songId) => {
@@ -119,6 +118,19 @@ export default function PlaylistPage() {
 
   return (
     <div>
+      <style>{`
+        .bone {
+          background: var(--skeleton-base, rgba(255,255,255,0.05));
+          background: linear-gradient(90deg,
+            var(--skeleton-base, rgba(255,255,255,0.05)) 25%,
+            var(--skeleton-shine, rgba(255,255,255,0.10)) 50%,
+            var(--skeleton-base, rgba(255,255,255,0.05)) 75%
+          );
+          background-size: 400px 100%;
+          animation: shimmer 1.4s infinite linear;
+          border-radius: 6px;
+        }
+      `}</style>
       {/* Back */}
       <button
         onClick={() => navigate("/library?tab=playlists")}
@@ -133,16 +145,19 @@ export default function PlaylistPage() {
       <div style={{ display: "flex", gap: 24, alignItems: "flex-end", marginBottom: 32, flexWrap: "wrap" }}>
         <div style={{
           width: 140, height: 140, borderRadius: 14, flexShrink: 0,
-          background: "var(--accent-soft)",
+          background: "var(--bg-card, rgba(255,255,255,0.04))",
           display: "flex", alignItems: "center", justifyContent: "center",
           border: "1px solid var(--border)",
           boxShadow: "0 16px 40px rgba(0,0,0,.4)",
           overflow: "hidden",
         }}>
-          {songs[0]?.cover_url
-            ? <img src={songs[0].cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.target.style.display = "none"; }} />
-            : <ListMusic size={40} style={{ color: "var(--accent)", opacity: 0.6 }} />
-          }
+          {songs[0]?.cover_url ? (
+            <AlbumArt src={songs[0].cover_url} title={songs[0]?.album_title || songs[0]?.title} size="100%" radius="0" />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: 'var(--text-muted)' }}>
+              <Music size={48} />
+            </div>
+          )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -160,7 +175,7 @@ export default function PlaylistPage() {
                 }}
                 style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Syne',sans-serif", background: "transparent", border: "none", borderBottom: "2px solid var(--accent)", color: "var(--text-primary)", outline: "none", flex: 1, letterSpacing: "-0.03em", padding: "0 0 2px" }}
               />
-              <button onClick={saveRename} disabled={saving} style={{ padding: "6px 14px", borderRadius: 7, background: "var(--accent)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", opacity: saving ? 0.6 : 1 }}>
+              <button onClick={saveRename} disabled={saving} style={{ padding: "6px 14px", borderRadius: 7, background: "var(--accent)", border: "none", color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", opacity: saving ? 0.6 : 1 }}>
                 {saving ? "…" : "Save"}
               </button>
               <button onClick={() => { setRenaming(false); setNewName(playlist?.name || ""); }} style={{ padding: "6px 10px", borderRadius: 7, background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center" }}>
@@ -183,7 +198,7 @@ export default function PlaylistPage() {
           </p>
 
           <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-            <button onClick={() => playAll(false)} disabled={!songs.length} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: songs.length ? "pointer" : "not-allowed", opacity: songs.length ? 1 : 0.4, fontFamily: "inherit" }}>
+            <button onClick={() => playAll(false)} disabled={!songs.length} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#000", fontSize: 13, fontWeight: 700, cursor: songs.length ? "pointer" : "not-allowed", opacity: songs.length ? 1 : 0.4, fontFamily: "inherit" }}>
               <Play size={14} fill="currentColor" /> Play All
             </button>
             <button onClick={() => playAll(true)} disabled={!songs.length} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, fontWeight: 600, cursor: songs.length ? "pointer" : "not-allowed", opacity: songs.length ? 1 : 0.4, fontFamily: "inherit", transition: "background .12s" }}
@@ -250,7 +265,7 @@ function SongRow({ rank, song, removing, onPlay, onRemove, onAddToPlaylist }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        <img src={song.cover_url} alt={song.title} style={{ width: 38, height: 38, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }} onError={e => e.target.src = "/default-album.jpg"} />
+        <AlbumArt src={song.cover_url} title={song.album_title || song.title} size={38} radius="6px" style={{ border: "1px solid var(--border)" }} />
         <div style={{ minWidth: 0 }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song.title}</p>
           <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>{song.artist_name}</p>
@@ -263,6 +278,8 @@ function SongRow({ rank, song, removing, onPlay, onRemove, onAddToPlaylist }) {
       <div style={{ display: "flex", justifyContent: "center", position: "relative" }} onClick={e => e.stopPropagation()}>
         <button
           onClick={() => setMenuOpen(p => !p)}
+          aria-label="Song options"
+          title="Song options"
           style={{ background: "none", border: "none", cursor: "pointer", color: hovered ? "var(--text-muted)" : "transparent", display: "flex", padding: 3, borderRadius: 5, transition: "color .12s" }}
         >
           <MoreHorizontal size={14} />

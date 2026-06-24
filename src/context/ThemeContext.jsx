@@ -9,7 +9,8 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const getInitialTheme = () => {
     const savedTheme = localStorage.getItem("kk-theme");
-    return savedTheme ? savedTheme : "musikly"; // Default to musikly theme
+    if (!savedTheme) return "muves";
+    return savedTheme; // allow all saved themes including musikly
   };
 
   const [theme, setTheme] = useState(getInitialTheme);

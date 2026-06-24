@@ -37,6 +37,11 @@ export default function ShareModal({ isOpen, onClose, song, lyrics, currentTime 
       }
     } else {
       stopRecordingAndPlayback();
+      if (audioCtxRef.source) {
+        try { audioCtxRef.source.disconnect(); } catch {}
+        audioCtxRef.source = null;
+        audioCtxRef.dest = null;
+      }
     }
   }, [isOpen]);
 
@@ -147,9 +152,10 @@ export default function ShareModal({ isOpen, onClose, song, lyrics, currentTime 
       const canvas = document.createElement("canvas"); canvas.width = 720; canvas.height = 1280;
       const ctx = canvas.getContext("2d");
 
-      // Shared Audio Context Protocol
       if (!audioCtxRef.context) {
          audioCtxRef.context = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (!audioCtxRef.source) {
          audioCtxRef.source = audioCtxRef.context.createMediaElementSource(videoAudioRef.current);
          audioCtxRef.dest = audioCtxRef.context.createMediaStreamDestination();
          audioCtxRef.source.connect(audioCtxRef.dest);
