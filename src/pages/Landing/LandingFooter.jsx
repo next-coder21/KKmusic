@@ -16,7 +16,7 @@ export default function LandingFooter() {
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2rem var(--lp-px)", gap: "1.5rem", flexWrap: "wrap" }}
       >
         <Link to="/" style={{ textDecoration: "none", flexShrink: 0 }}>
-          <img src="https://ucarecdn.com/a9fed3de-4f2d-4b0e-8988-5c8bc65d52a3/-/preview/1000x1000/" alt="Muves" style={{ height: 40, width: "auto", objectFit: "contain", transform: "rotate(-2deg)", display: "block" }} />
+          <img src="/muves/Muves.png" alt="Muves" style={{ height: 40, width: "auto", objectFit: "contain", transform: "rotate(-2deg)", display: "block" }} />
         </Link>
 
         <nav style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", justifyContent: "center" }}>

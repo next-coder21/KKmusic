@@ -34,7 +34,7 @@ export default function LandingNavbar() {
             onMouseEnter={e => e.currentTarget.style.transform = "rotate(2deg)"}
             onMouseLeave={e => e.currentTarget.style.transform = "rotate(-1deg)"}
           >
-            <img src="https://ucarecdn.com/a9fed3de-4f2d-4b0e-8988-5c8bc65d52a3/-/preview/1000x1000/" alt="Muves" style={{ height: 48, width: "auto", objectFit: "contain" }} />
+            <img src="/muves/Muves.png" alt="Muves" style={{ height: 48, width: "auto", objectFit: "contain" }} />
           </Link>
 
           {/* Desktop nav */}
@@ -92,7 +92,7 @@ export default function LandingNavbar() {
       {/* Mobile drawer */}
       <div className={`lp-drawer ${open ? "open" : ""}`}>
         <div style={{ height: "var(--lp-nav-h)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", borderBottom: "2px solid var(--lp-on-surface)" }}>
-          <img src="https://ucarecdn.com/a9fed3de-4f2d-4b0e-8988-5c8bc65d52a3/-/preview/1000x1000/" alt="Muves" style={{ height: 42, width: "auto", objectFit: "contain" }} />
+          <img src="/muves/Muves.png" alt="Muves" style={{ height: 42, width: "auto", objectFit: "contain" }} />
           <button
             onClick={() => setOpen(false)}
             style={{ background: "var(--lp-surface-container-highest)", border: "2px solid var(--lp-on-surface)", boxShadow: "var(--lp-shadow-sm)", cursor: "pointer", color: "var(--lp-on-surface)", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}
